@@ -1,10 +1,41 @@
 -- Active: 1776668343304@@127.0.0.1@5432@Demo_warehouse@bronze
 
+
 /*
-
-Creating tables in bronze:
-
+Performance tuning : Permanant change.
 */
+    ALTER SYSTEM SET shared_buffers = '2GB'; 
+    -- Planner & I/O
+    ALTER SYSTEM SET random_page_cost = 1.1;
+    ALTER SYSTEM SET effective_cache_size = '6GB';
+    -- Parallelism
+    ALTER SYSTEM SET max_parallel_workers_per_gather = 4;
+    ALTER SYSTEM SET max_parallel_workers = 8;
+    -- Write Performance (Heavy Lifting)
+    ALTER SYSTEM SET synchronous_commit = OFF;
+    ALTER SYSTEM SET max_wal_size = '4GB';
+    ALTER SYSTEM SET min_wal_size = '1GB';
+    ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+    -- Maintenance & Operations
+    ALTER SYSTEM SET maintenance_work_mem = '512MB';
+    ALTER SYSTEM SET work_mem = '512MB';
+    -- Apply (Note: shared_buffers requires a full DB restart)
+    SELECT pg_reload_conf();
+
+SELECT name, setting, unit, source, sourcefile
+FROM pg_settings 
+WHERE source NOT IN ('default', 'override');
+
+/*
+END
+*/
+
+========================
+
+/*
+Creating tables in bronze: Main/final table for bronze(Run only once)
+*/
+
 create or replace procedure create_tables_bronze()
 language PLPGSQL
 as $$
@@ -65,21 +96,14 @@ end;
 $$;
 
 
-
 call create_tables_bronze();
-
 
 /*
 Table creation complete. Now we will ingest data into the bronze layer from CSV files.
 */
 
 
-
-=======================================================================================================================
-/*
-IMPORTING DATA INTO THE BRONZE LAYER (customers_raw)===================================================================
-*/
-=======================================================================================================================
+========================
 
 
 create or replace procedure bronze_ingest()
@@ -88,40 +112,83 @@ LANGUAGE plpgsql
 as $$
 
 Begin
-        RAISE NOTICE 'Step 1: Starting to ingest Customer data...';
-       
-        COPY bronze.customers_raw(customer_id, name, signup_date)
-        FROM '/Users/sazid/Documents/SQL PDF/Warehouse Project/Demo_warehouse/Data/customers_raw1.csv'
+
+        /*
+        IMPORTING DATA INTO THE BRONZE LAYER (customers_raw)
+        */
+        RAISE NOTICE 'Step 1: Starting to ingest Customer data to staging table...';
+        create UNLOGGED table bronze.customers_raw_daily(customer_id VARCHAR(255), name VARCHAR(255), signup_date date, created_at_bronze timestamp default current_timestamp);
+        
+        COPY bronze.customers_raw_daily(customer_id, name, signup_date)
+        FROM PROGRAM 'head -n 50000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_2026-05-04.csv"'
         WITH (FORMAT csv, HEADER true);
 
-        RAISE NOTICE 'Step 1: Customer data ingested successfully.';
+        RAISE NOTICE 'Step 2: Customer data ingested successfully to staging table and creating index for it....';
+
+        CREATE INDEX ON bronze.customers_raw_daily(created_at_bronze, customer_id)include(name, signup_date);
+
+        raise notice '->Index created successfully';
+
+
+        RAISE NOTICE 'Step 3: Starting to ingest Customer data to main table....';
+
+        insert into bronze.customers_raw
+        select * from bronze.customers_raw_daily;
+
+        raise notice 'Step 4: Customer data ingested successfully to main table...';
         
 
 
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (products_raw)
        */
-        RAISE NOTICE 'Step 2: Starting to ingest Product data...';
+        RAISE NOTICE 'Step 1: Starting to ingest Product data to staging table ...';
+        create UNLOGGED table bronze.products_raw_daily(product_id varchar(100), name VARCHAR(255), category VARCHAR(255), price numeric(10,2), created_at_bronze timestamp default current_timestamp);
 
-        copy bronze.products_raw(product_id, name, category, price)
-        from '/Users/sazid/Documents/SQL PDF/Warehouse Project/Demo_warehouse/Data/products_raw.csv'
+        copy bronze.products_raw_daily(product_id, name, category, price)
+        from PROGRAM 'head -n 500 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_2026-05-04.csv"'
         with (format csv, header true);
 
-        RAISE NOTICE 'Step 2: Product data ingested successfully.';
+        RAISE NOTICE 'Step 2: Product data ingested successfully to staging table and creating index for it....';
+
+        CREATE INDEX ON bronze.products_raw_daily(created_at_bronze, product_id)include(name, category, price);
+
+        raise notice '->Index created successfully';
+
+
+        RAISE NOTICE 'Step 3: Starting to ingest Product data to main table....';
+
+        insert into bronze.products_raw
+        select * from bronze.products_raw_daily;
+
+        raise notice 'Step 4: Product data ingested successfully to main table...';
 
 
 
-       
-          /*
+        /*
         IMPORTING DATA INTO THE BRONZE LAYER (orders_raw)
         */
-        RAISE NOTICE 'Step 3: Starting to ingest Order data...';
+        RAISE NOTICE 'Step 1: Starting to ingest Order data to staging table...';
+        
+        create UNLOGGED table bronze.orders_raw_daily(order_id VARCHAR(255), customer_id VARCHAR(255), order_date date, status VARCHAR(50), created_at_bronze timestamp default current_timestamp);
  
-        copy bronze.orders_raw(order_id, customer_id, order_date, status)
-        from '/Users/sazid/Documents/SQL PDF/Warehouse Project/Demo_warehouse/Data/orders_raw.csv'
+        copy bronze.orders_raw_daily(order_id, customer_id, order_date, status)
+        from PROGRAM 'head -n 5000000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_2026-05-04.csv"'
         with(format csv, header true);
 
-        RAISE NOTICE 'Step 3: Order data ingested successfully.';
+        RAISE NOTICE 'Step 2: Order data ingested successfully to staging table and creating index for it....';
+
+        CREATE INDEX ON bronze.orders_raw_daily(created_at_bronze, order_id, customer_id)include( order_date, status);
+
+        raise notice '->Index created successfully';
+
+
+        RAISE NOTICE 'Step 3: Starting to ingest Order data to main table....';
+
+        insert into bronze.orders_raw
+        select * from bronze.orders_raw_daily;
+
+        raise notice 'Step 4: Order data ingested successfully to main table...';
  
 
         /*
@@ -129,30 +196,50 @@ Begin
         */
 
 
-        RAISE notice 'Step 4: Starting to ingest Order Item data...';
+        RAISE notice 'Step 1: Starting to ingest Order Item data into staging table...';
         
-        copy bronze.order_items_raw(order_id, product_id, quantity, unit_price, total)
-        from '/Users/sazid/Documents/SQL PDF/Warehouse Project/Demo_warehouse/Data/order_items_raw.csv'
+        create UNLOGGED table bronze.order_items_raw_daily(order_id VARCHAR(255), product_id VARCHAR(255), quantity NUMERIC(10,2), unit_price NUMERIC(10,2), total NUMERIC(10,2), created_at_bronze timestamp default current_timestamp);
+        
+        copy bronze.order_items_raw_daily(order_id, product_id, quantity, unit_price, total)
+        from PROGRAM 'head -n 10000000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_2026-05-04.csv"'
         with(format csv, header true);
 
-        RAISE NOTICE 'Step 4: Order Item data ingested successfully.';
+        RAISE NOTICE 'Step 2: Order Item data ingested successfully to staging table and creating index for it....';
 
+        CREATE INDEX ON bronze.order_items_raw_daily(created_at_bronze, order_id, product_id)include( quantity, unit_price, total);
 
+        raise notice '->Index created successfully';
+
+        RAISE NOTICE 'Step 3: Starting to ingest Order Item data into main table...';
+
+        insert into bronze.order_items_raw
+        select * from bronze.order_items_raw_daily;
+
+        raise notice 'Step 4: Order Item data ingested successfully to main table...';
+        
 
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (payments_raw)
         */
       
-        RAISE NOTICE 'Step 5: Starting to ingest Payment data...';
+        RAISE NOTICE 'Step 1: Starting to ingest Payment data into staging table...';
+        
+        create UNLOGGED table bronze.payments_raw_daily(payment_id VARCHAR(255),method VARCHAR(50), order_id VARCHAR(255),  order_date date, total NUMERIC(10,2), payment_date date,   created_at_bronze timestamp default current_timestamp);
        
-        copy bronze.payments_raw(order_id,  total, payment_id,  order_date, payment_date, method)
-        from '/Users/sazid/Documents/SQL PDF/Warehouse Project/Demo_warehouse/Data/payments_raw.csv'
+        copy bronze.payments_raw_daily(payment_id,  method, order_id,  order_date, total, payment_date)
+        from PROGRAM 'head -n 5000000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_2026-05-04.csv"'
         with(format csv, header true);
 
-        RAISE NOTICE 'Step 5: Payment data ingested successfully.';
+        RAISE NOTICE 'Step 2: Payment data ingested successfully to staging table and creating index for it......';
 
-        
-        raise notice 'All data ingested successfully into the Bronze layer!';
+        CREATE INDEX ON bronze.payments_raw_daily(created_at_bronze, payment_id, order_id)include( method,  order_date, total, payment_date);
+
+        RAISE NOTICE 'Step 3: Starting to ingest Payment data into main table...';
+
+        insert into bronze.payments_raw
+        select * from bronze.payments_raw_daily;
+
+        raise notice 'Step 4: Payment data ingested successfully to main table...';
 
 
 
@@ -162,35 +249,36 @@ $$;
 
 call bronze_ingest();
 
+
 /*
 Data ingestion into the bronze layer is complete. We can now proceed to create tables in the silver layer and ingest data from bronze to silver.
 */
 
-
+========================
 
 /*
 Procedure to drop all table :
 */
 
-create or replace procedure drop_all_tables_bronze()
+create or replace procedure drop_all_tables_bronze_daily()
 language PLPGSQL
 as $$
 
 BEGIN
 
-    drop table if exists bronze.customers_raw cascade;
-    drop table if exists bronze.products_raw cascade;
-    drop table if exists bronze.orders_raw cascade;
-    drop table if exists bronze.order_items_raw cascade;
-    drop table if exists bronze.payments_raw cascade;
+    drop table if exists bronze.customers_raw_daily cascade;
+    drop table if exists bronze.products_raw_daily cascade;
+    drop table if exists bronze.orders_raw_daily cascade;
+    drop table if exists bronze.order_items_raw_daily cascade;
+    drop table if exists bronze.payments_raw_daily cascade;
 
 end;
 $$;
 
-call drop_all_tables_bronze();
+call drop_all_tables_bronze_daily();
 
 
-
+========================
 
 
 
@@ -213,22 +301,8 @@ select * from information_schema.tables where table_name like '%stat%';
 
 
 
-CREATE INDEX idx_payments_optimization 
-ON bronze.payments_raw (order_id, order_date DESC);
 
-SET force_parallel_mode = off;
-SET parallel_tuple_cost = 0.1; -- standard default
-SET max_parallel_workers_per_gather = 2; 
 
-select *, row_number()over(partition by order_id order by order_date desc) as rnk from bronze.payments_raw
-order by order_id;
-
-select count(*) from bronze.customers_raw;
-SELECT count(*) FROM bronze.order_items_raw;
-select  count(*) from bronze.orders_raw;
-select count(*) from bronze.payments_raw;
-select * from bronze.products_raw
-where product_id='P0';
 
 
 
@@ -236,9 +310,21 @@ where product_id='P0';
 
 
 /*
-copy silver.customers(customer_id,name,signup_date) TO '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers.csv' WITH (FORMAT CSV, HEADER);
-copy silver.order_items(order_id,product_id,quantity,unit_price,total) TO '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items.csv' WITH (FORMAT CSV, HEADER);
-copy silver.orders(order_id,customer_id,order_date,status) TO '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders.csv' WITH (FORMAT CSV, HEADER);
-copy silver.payments(payment_id,order_id,total,payment_date,method) TO '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments.csv' WITH (FORMAT CSV, HEADER);
-copy silver.products(product_id,name,category,price) TO '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products.csv' WITH (FORMAT CSV, HEADER);
+
+COPY silver.customers(customer_id, name, signup_date) 
+TO PROGRAM 'cut -d "," -f 1,2,3 > "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_2026-05-04.csv"' 
+WITH (FORMAT CSV, HEADER);
+
+copy silver.order_items(order_id,product_id,quantity,unit_price,total) 
+TO PROGRAM ' cut -d "," -f 1,2,3,4,5 > "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_2026-05-04.csv"'
+ WITH (FORMAT CSV, HEADER);
+copy silver.orders(order_id,customer_id,order_date,status) 
+TO PROGRAM 'cut -d "," -f 1,2,3,4 > "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders.csv_2026-05-04.csv"'
+ WITH (FORMAT CSV, HEADER);
+copy silver.payments(payment_id,method,order_id,order_date,total,payment_date) 
+TO PROGRAM 'cut -d "," -f 1,2,3,4,5,6 > "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_2026-05-04.csv"'
+ WITH (FORMAT CSV, HEADER);
+copy silver.products(product_id,name,category,price) 
+TO PROGRAM 'cut -d "," -f 1,2,3,4 > "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_2026-05-04.csv"' WITH (FORMAT CSV, HEADER);
+
 */

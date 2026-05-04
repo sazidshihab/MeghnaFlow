@@ -46,7 +46,7 @@ BEGIN
             customer_id varchar(255),
             name varchar(255),
             signup_date date ,
-            created_at_bronze timestamp default current_timestamp,
+            created_at_bronze timestamp ,
             created_at_silver timestamp default current_timestamp 
         );
 
@@ -56,7 +56,7 @@ BEGIN
             name VARCHAR(255),
             category VARCHAR(255),
             price numeric(10,2),
-            created_at_bronze timestamp default current_timestamp,
+            created_at_bronze timestamp ,
             created_at_silver timestamp default current_timestamp
         );
 
@@ -66,7 +66,7 @@ BEGIN
                 customer_id VARCHAR(255),
                 order_date date,
                 status VARCHAR(50),
-                created_at_bronze timestamp default current_timestamp,
+                created_at_bronze timestamp ,
                 created_at_silver timestamp default current_timestamp
 
         );
@@ -80,7 +80,7 @@ BEGIN
                 quantity numeric(10,2),
                 unit_price numeric(10,2),
                 total numeric(10,2),
-                created_at_bronze timestamp default current_timestamp,
+                created_at_bronze timestamp ,
                 created_at_silver timestamp default current_timestamp
 
         );
@@ -93,7 +93,7 @@ BEGIN
                     order_id VARCHAR(255),
                     order_date date,
                     total numeric(10,2),
-                    created_at_bronze timestamp default current_timestamp,
+                    created_at_bronze timestamp ,
                     created_at_silver timestamp default current_timestamp
 
         );
@@ -127,97 +127,170 @@ BEGIN
 
 
         /*Full load payments*/
-        raise notice 'Data full load to [Payments]';
-        truncate table  silver.payments;
+        raise notice 'Data full loading to [Payments] daily table...';
 
-        insert into silver.payments(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze)
+        create unlogged table silver.payments_daily(payment_id VARCHAR(255),payment_date date,method VARCHAR(50),order_id VARCHAR
+        (255),order_date date,total NUMERIC(10,2),created_at_bronze TIMESTAMP,created_at_silver timestamp default current_timestamp);
+        insert into silver.payments_daily(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze)
         select distinct on(payment_id,order_id) payment_id,payment_date,method,order_id,order_date,total,created_at_bronze
-        from bronze.payments_raw order BY
+        from bronze.payments_raw_daily order BY
         payment_id,order_id,created_at_bronze desc;
 
-        raise notice 'loaded completed in % min. Creating PK for [Payments]', clock_timestamp()-first_time;
-        second_time:= clock_timestamp();
+        raise notice 'loaded completed in % min. Creating PK for [Payments], both table(daily+main)', clock_timestamp()-first_time;
+        first_time:= clock_timestamp();
+        if not exists (select 1 from silver.payments) THEN
         alter table silver.payments
         add constraint payment_order_pk primary key (payment_id,order_id);
+        end if;
 
-        RAISE NOTICE 'PK task completed [Payments] in % min.', clock_timestamp()-second_time;
+        alter table silver.payments_daily
+        add constraint payment_order_pk_daily primary key (payment_id,order_id);
+
+        RAISE NOTICE 'PK task completed [Payments] in % min.', clock_timestamp()-first_time;
+
+        raise notice 'Now inserting to [Payments] main table';
+        first_time:= clock_timestamp();
+        insert into silver.payments
+        select  * from silver.payments_daily;
+
+        raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
+        
+        
+
+        drop table bronze.payments_raw_daily;
 
 
 
         /*Full load Order_items*/
 
-        raise notice 'Data full load to [ORDER_ITEMS]';
+        raise notice 'Data full loading to [ORDER_ITEMS] daily table...';
         first_time:= clock_timestamp();
-
-        TRUNCATE  table silver.order_items;
-        insert into silver.order_items (order_id, product_id, quantity, unit_price, total, created_at_bronze)
-        select distinct on (order_id,product_id) 
-        * from bronze.order_items_raw
-        order by order_id,product_id, created_at_bronze desc;
+        create unlogged table silver.order_items_daily(order_id VARCHAR(255),product_id VARCHAR(255),quantity NUMERIC(10,2),unit_price NUMERIC(10,2),total NUMERIC(10,2),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
         
-        raise notice 'Loaded completed in % min, Creating PK for [ORDER_ITEMS]', clock_timestamp()-first_time;
-        second_time:=clock_timestamp();
+        insert into silver.order_items_daily (order_id, product_id, quantity, unit_price, total, created_at_bronze)
+        select distinct on (order_id,product_id) 
+        * from bronze.order_items_raw_daily
+        order by order_id,product_id, created_at_bronze desc;
+
+        raise notice 'Loaded completed in % min, Creating PK for [ORDER_ITEMS], both table(daily+main)', clock_timestamp()-first_time;
+        first_time:=clock_timestamp();
+        if not exists (select 1 from silver.order_items) THEN
         alter table silver.order_items
         add constraint order_product_pk primary key (order_id, product_id);
+        end if;
 
-        RAISE NOTICE 'PK loaded, complete [ORDER_ITEMS] in % min.', clock_timestamp()-second_time;
+        alter table silver.order_items_daily
+        add constraint order_product_pk_daily primary key (order_id, product_id);
+
+        RAISE NOTICE 'PK loaded, complete [ORDER_ITEMS] in % min.', clock_timestamp()-first_time;
+
+        raise notice 'Now inserting to [ORDER_ITEMS] main table';
+        first_time:= clock_timestamp();
+        insert into silver.order_items
+        select * from silver.order_items_daily;
+
+        raise notice 'loaded completed in % min.', clock_timestamp()-first_time;
+    
+
+        drop table bronze.order_items_raw_daily;
 
 
 
         /*Full load Customers*/
-        raise notice 'Data full load to [CUSTOMERS]';
+        raise notice 'Data full load to [CUSTOMERS] daily table...';
         first_time=clock_timestamp();
-        TRUNCATE  table silver.customers;
-        insert into silver.customers(customer_id,name,signup_date,created_at_bronze)
+        create unlogged table silver.customers_daily(customer_id VARCHAR(255),name VARCHAR(255),signup_date date,created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
+        insert into silver.customers_daily(customer_id,name,signup_date,created_at_bronze)
         select distinct on (customer_id) * 
-        from bronze.customers_raw
+        from bronze.customers_raw_daily
         order by customer_id, created_at_bronze desc;
 
-        raise notice 'Loaded completed in % min, Creating PK for [CUSTOMERS]', clock_timestamp()-first_time;
-        second_time:=clock_timestamp();
+        raise notice 'Loaded completed in % min, Creating PK for [CUSTOMERS], both table(daily+main)', clock_timestamp()-first_time;
+        first_time:=clock_timestamp();
+        if not exists (select 1 from silver.customers)then
         alter table silver.customers
         add constraint customer_id_pk primary key (customer_id);
+        end if;
 
-        RAISE NOTICE 'PK loaded, complete [CUSTOMERS] in % min.', clock_timestamp()-second_time;
+        alter table silver.customers_daily
+        add constraint customer_id_pk_daily primary key (customer_id);
+
+        RAISE NOTICE 'PK loaded, complete [CUSTOMERS] in % min.', clock_timestamp()-first_time;
+
+        raise notice ' Now inserting to [CUSTOMERS] main table';
+        first_time:=clock_timestamp();
+        insert into silver.customers
+        select  * from silver.customers_daily;
+
+        raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
+
+
+        drop table bronze.customers_raw_daily;
 
 
 
         /*Full load orders*/
-        raise notice 'Data full load to [ORDERS]';
+        raise notice 'Data full load to [ORDERS] daily table...';
         first_time:=clock_timestamp();
-
-        truncate table  silver.orders;
-        insert into silver.orders(order_id,customer_id,order_date,status,created_at_bronze)
+        create unlogged table silver.orders_daily(order_id VARCHAR(255),customer_id VARCHAR(255),order_date date,status VARCHAR(255),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
+        insert into silver.orders_daily(order_id,customer_id,order_date,status,created_at_bronze)
         select distinct on (order_id,customer_id) *
-        from bronze.orders_raw order BY
+        from bronze.orders_raw_daily order BY
         order_id,customer_id,created_at_bronze desc;
 
-        raise notice 'Full loaded completed in % min, Creating PK for [ORDERS]', clock_timestamp()-first_time;
-        second_time:=clock_timestamp();
+        raise notice 'Full loaded completed in % min, Creating PK for [ORDERS], both table(daily+main)', clock_timestamp()-first_time;
+        first_time:=clock_timestamp();
+        if not exists (select 1 from silver.orders) then
         alter table silver.orders
         add constraint order_customer_pk primary key (order_id,customer_id);
+        end if;
 
-        RAISE NOTICE 'PK loaded, completed in [ORDERS] % min.', clock_timestamp()-second_time;
+        alter table silver.orders_daily
+        add constraint order_customer_pk_daily primary key (order_id,customer_id);
+
+        RAISE NOTICE 'PK loaded, completed in [ORDERS] % min.', clock_timestamp()-first_time;
+
+        raise notice 'Now inserting to [ORDERS] main table';
+        first_time:=clock_timestamp();
+        insert into silver.orders
+        select * from silver.orders_daily;
+
+        raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
+
+
+
+        drop table bronze.orders_raw_daily;
 
 
 
 
         /*Full load products*/
-        raise notice 'Data full load to [Products]';
+        raise notice 'Data full loading to [Products] daily table...';
         first_time:=clock_timestamp();
-
-        TRUNCATE table  silver.products;
-        insert into silver.products(product_id,name,category,price,created_at_bronze)
+        create unlogged table silver.products_daily(product_id VARCHAR(255),name VARCHAR(255),category VARCHAR(255),price NUMERIC(10,2),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
+        insert into silver.products_daily(product_id,name,category,price,created_at_bronze)
         select distinct on(product_id) *
-        from bronze.products_raw order by 
+        from bronze.products_raw_daily order by 
         product_id, created_at_bronze desc;
 
-        raise notice 'Full load completed in % min, Creating PK for [Products]', clock_timestamp()-first_time;
-        second_time:=clock_timestamp();
-        alter table silver.products
-        add constraint product_pk primary key (product_id);
 
-        RAISE NOTICE 'PK loaded, completed in [Products] % min.', clock_timestamp()-second_time;
+        raise notice 'Full loaded completed in % min, Creating PK for [Products], daily table', clock_timestamp()-first_time;
+        first_time:=clock_timestamp();
+        IF NOT EXISTS (SELECT 1 FROM silver.products) THEN
+        ALTER TABLE silver.products ADD CONSTRAINT product_pk PRIMARY KEY (product_id);
+        END IF;
+        alter table silver.products_daily
+        add constraint product_pk_daily primary key (product_id);
+        RAISE NOTICE 'PK loaded completed in [Products] % min.', clock_timestamp()-first_time;
+
+        raise notice 'Now inserting to [Products] main table';
+        first_time:=clock_timestamp();
+        insert into silver.products
+        select * from silver.products_daily;
+
+        RAISE NOTICE 'Full data loaded completed in [Products] % min.', clock_timestamp()-first_time;
+
+        drop table bronze.products_raw_daily;
 
 
 end;
@@ -226,237 +299,57 @@ $$;
 call silver.silver_import_full();
 
 
+drop table silver.products;
+create table silver.products(
+        product_id varchar(100) ,
+        name VARCHAR(255),
+        category VARCHAR(255),
+        price numeric(10,2),
+        created_at_bronze timestamp ,
+        created_at_silver timestamp default current_timestamp
+);
+
+==================
+
+
+select count(*) from silver.customers;
+
+
+alter table silver.order_items drop constraint order_product_pk;
+
+alter table silver.customers drop constraint customer_id_pk;
+
+alter table silver.orders drop constraint order_customer_pk;
+
+alter table silver.products drop constraint product_pk;
+
+alter table silver.payments drop constraint payment_order_pk;
+
+
 ===============
 
-/*
-Create Incremental Load: Only run this procedure after running FULL LOAD once.
-*/
-
-CREATE OR REPLACE PROCEDURE silver_import_incremental()
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    check_date timestamp;
-    start_time timestamp;
-    section_start timestamp;
+create or replace procedure silver.silver_daily_table_drop()
+language PLPGSQL
+as $$
 BEGIN
-    -- 1. Performance Optimizations (Session Level)
-    SET LOCAL work_mem = '512MB';
-    SET LOCAL maintenance_work_mem = '512MB';
-    SET LOCAL synchronous_commit = OFF;
-    SET LOCAL parallel_tuple_cost = 0;
-    SET LOCAL parallel_setup_cost = 0;
-
-    start_time := clock_timestamp();
-
-    /* -------------------------------------------------------------------------
-       ORDER_ITEMS TABLE
-    ------------------------------------------------------------------------- */
-    section_start := clock_timestamp();
-    RAISE NOTICE 'Starting [ORDER_ITEMS]...';
-
-    SELECT COALESCE(MAX(created_at_bronze), '1900-01-01 00:00:00') 
-    INTO check_date FROM silver.order_items;
-
-    DROP TABLE IF EXISTS silver_order_items_stage;
-    
-    CREATE UNLOGGED TABLE silver_order_items_stage AS
-    SELECT DISTINCT ON (order_id, product_id) *
-    FROM bronze.order_items_raw
-    WHERE created_at_bronze > check_date
-    ORDER BY order_id, product_id, created_at_bronze DESC;
-
-    CREATE INDEX ON silver_order_items_stage (order_id, product_id);
-    ANALYZE silver_order_items_stage;
-
-    INSERT INTO silver.order_items (order_id, product_id, quantity, unit_price, total, created_at_bronze)
-    SELECT order_id, product_id, quantity, unit_price, total, created_at_bronze
-    FROM silver_order_items_stage
-    ON CONFLICT (order_id, product_id)
-    DO UPDATE SET
-        quantity = EXCLUDED.quantity,
-        unit_price = EXCLUDED.unit_price,
-        total = EXCLUDED.total,
-        created_at_bronze = EXCLUDED.created_at_bronze,
-        created_at_silver = CURRENT_TIMESTAMP
-    WHERE (silver.order_items.quantity IS DISTINCT FROM EXCLUDED.quantity)
-       OR (silver.order_items.unit_price IS DISTINCT FROM EXCLUDED.unit_price)
-       OR (silver.order_items.total IS DISTINCT FROM EXCLUDED.total);
-
-    DROP TABLE IF EXISTS silver_order_items_stage;
-    RAISE NOTICE 'Completed [ORDER_ITEMS] in %', clock_timestamp() - section_start;
-
-
-    /* -------------------------------------------------------------------------
-       CUSTOMERS TABLE
-    ------------------------------------------------------------------------- */
-    section_start := clock_timestamp();
-    RAISE NOTICE 'Starting [CUSTOMERS]...';
-
-    SELECT COALESCE(MAX(created_at_bronze), '1900-01-01 00:00:00') 
-    INTO check_date FROM silver.customers;
-
-    DROP TABLE IF EXISTS silver_customers_stage;
-
-    CREATE UNLOGGED TABLE silver_customers_stage AS
-    SELECT DISTINCT ON (customer_id) *
-    FROM bronze.customers_raw
-    WHERE created_at_bronze > check_date
-    ORDER BY customer_id, created_at_bronze DESC;
-
-    CREATE INDEX ON silver_customers_stage (customer_id);
-    ANALYZE silver_customers_stage;
-
-    INSERT INTO silver.customers (customer_id, name, signup_date, created_at_bronze)
-    SELECT customer_id, name, signup_date, created_at_bronze
-    FROM silver_customers_stage
-    ON CONFLICT (customer_id)
-    DO UPDATE SET
-        name = EXCLUDED.name,
-        signup_date = EXCLUDED.signup_date,
-        created_at_bronze = EXCLUDED.created_at_bronze,
-        created_at_silver = CURRENT_TIMESTAMP
-    WHERE (silver.customers.name IS DISTINCT FROM EXCLUDED.name)
-       OR (silver.customers.signup_date IS DISTINCT FROM EXCLUDED.signup_date);
-
-    DROP TABLE IF EXISTS silver_customers_stage;
-    RAISE NOTICE 'Completed [CUSTOMERS] in %', clock_timestamp() - section_start;
-
-
-    /* -------------------------------------------------------------------------
-       ORDERS TABLE
-    ------------------------------------------------------------------------- */
-    section_start := clock_timestamp();
-    RAISE NOTICE 'Starting [ORDERS]...';
-
-    SELECT COALESCE(MAX(created_at_bronze), '1900-01-01 00:00:00') 
-    INTO check_date FROM silver.orders;
-
-    DROP TABLE IF EXISTS silver_orders_stage;
-
-    CREATE UNLOGGED TABLE silver_orders_stage AS
-    SELECT DISTINCT ON (order_id, customer_id) *
-    FROM bronze.orders_raw
-    WHERE created_at_bronze > check_date
-    ORDER BY order_id, customer_id, created_at_bronze DESC;
-
-    CREATE INDEX ON silver_orders_stage (order_id, customer_id);
-    ANALYZE silver_orders_stage;
-
-    INSERT INTO silver.orders (order_id, customer_id, order_date, status, created_at_bronze)
-    SELECT order_id, customer_id, order_date, status, created_at_bronze
-    FROM silver_orders_stage
-    ON CONFLICT (order_id, customer_id)
-    DO UPDATE SET
-        order_date = EXCLUDED.order_date,
-        status = EXCLUDED.status,
-        created_at_bronze = EXCLUDED.created_at_bronze,
-        created_at_silver = CURRENT_TIMESTAMP
-    WHERE (silver.orders.order_date IS DISTINCT FROM EXCLUDED.order_date)
-       OR (silver.orders.status IS DISTINCT FROM EXCLUDED.status);
-
-    DROP TABLE IF EXISTS silver_orders_stage;
-    RAISE NOTICE 'Completed [ORDERS] in %', clock_timestamp() - section_start;
-
-    RAISE NOTICE 'Total execution time: %', clock_timestamp() - start_time;
-
-
-     /* -------------------------------------------------------------------------
-    PAYMENTS TABLE
-    ------------------------------------------------------------------------ */ 
-
-    section_start := clock_timestamp();
-    RAISE NOTICE 'Starting [PAYMENTS]...';
-
-    SELECT COALESCE(MAX(created_at_bronze), '1900-01-01 00:00:00') 
-    INTO check_date FROM silver.payments;
-
-    DROP TABLE IF EXISTS silver_payments_stage;
-
-    CREATE UNLOGGED TABLE silver_payments_stage AS
-    SELECT DISTINCT ON (payment_id, order_id) *
-    FROM bronze.payments_raw
-    WHERE created_at_bronze > check_date
-    ORDER BY payment_id, order_id, created_at_bronze DESC;
-
-    CREATE INDEX ON silver_payments_stage (payment_id, order_id);
-    ANALYZE silver_payments_stage;
-
-    INSERT INTO silver.payments (payment_id, payment_date, method, order_id,order_date,total, created_at_bronze)
-    SELECT payment_id, payment_date, method, order_id,order_date,total, created_at_bronze
-    FROM silver_payments_stage
-    ON CONFLICT (payment_id, order_id)
-    DO UPDATE SET
-        payment_date = EXCLUDED.payment_date,
-        method = EXCLUDED.method,
-        order_date = EXCLUDED.order_date,
-        total=EXCLUDED.total,
-        created_at_silver = CURRENT_TIMESTAMP
-    WHERE (silver.payments.payment_date IS DISTINCT FROM EXCLUDED.payment_date)
-       OR (silver.payments.method IS DISTINCT FROM EXCLUDED.method) or 
-       (silver.payments.order_date IS DISTINCT FROM EXCLUDED.order_date)
-       OR (silver.payments.total IS DISTINCT FROM EXCLUDED.total);
-
-    DROP TABLE IF EXISTS silver_payments_stage;
-    RAISE NOTICE 'Completed [PAYMENTS] in %', clock_timestamp() - section_start;
-
-    RAISE NOTICE 'Total execution time: %', clock_timestamp() - start_time;
-
-
-    /* -------------------------------------------------------------------------
-    PRODUCTS TABLE
-    ------------------------------------------------------------------------ */ 
-
-    section_start := clock_timestamp();
-    RAISE NOTICE 'Starting [PRODUCTS]...';
-
-    SELECT COALESCE(MAX(created_at_bronze), '1900-01-01 00:00:00') 
-    INTO check_date FROM silver.products;
-
-    DROP TABLE IF EXISTS silver_products_stage;
-
-    CREATE UNLOGGED TABLE silver_products_stage AS
-    SELECT DISTINCT ON (product_id) *
-    FROM bronze.products_raw
-    WHERE created_at_bronze > check_date
-    ORDER BY product_id, created_at_bronze DESC;
-
-    CREATE INDEX ON silver_products_stage (product_id);
-    ANALYZE silver_products_stage;
-
-    INSERT INTO silver.products (product_id, name, category, price, created_at_bronze)
-    SELECT product_id, name, category, price, created_at_bronze
-    FROM silver_products_stage
-    ON CONFLICT (product_id)
-    DO UPDATE SET
-        name = EXCLUDED.name,
-        category = EXCLUDED.category,
-        price = EXCLUDED.price,
-        created_at_silver = CURRENT_TIMESTAMP
-    WHERE (silver.products.name IS DISTINCT FROM EXCLUDED.name)
-       OR (silver.products.category IS DISTINCT FROM EXCLUDED.category) or 
-       (silver.products.price IS DISTINCT FROM EXCLUDED.price);
-
-    DROP TABLE IF EXISTS silver_products_stage;
-    RAISE NOTICE 'Completed [PRODUCTS] in %', clock_timestamp() - section_start;
-
-    RAISE NOTICE 'Total execution time: %', clock_timestamp() - start_time;
+        drop table if exists silver.customers_daily;
+        drop table if exists silver.products_daily;
+        drop table if exists silver.orders_daily;
+        drop table if exists silver.order_items_daily;
+        drop table if exists silver.payments_daily;
 
 END;
 $$;
 
-
-call silver_import_incremental();
-
-
-
+call silver_daily_table_drop();
 
             
 
 
 
 
-
+select count(*) from bronze.order_items_raw;
+select count(*) from silver.order_items;
 
 
 
