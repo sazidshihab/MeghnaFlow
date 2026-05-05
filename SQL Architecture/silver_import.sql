@@ -47,7 +47,10 @@ BEGIN
             name varchar(255),
             signup_date date ,
             created_at_bronze timestamp ,
-            created_at_silver timestamp default current_timestamp 
+            created_at_silver timestamp default current_timestamp,
+            valid_from TIMESTAMP default current_date,
+            valid_to TIMESTAMP default '2050-01-01',
+            is_valid boolean default true
         );
 
         drop table if exists silver.products cascade;
@@ -127,10 +130,15 @@ BEGIN
 
 
         /*Full load payments*/
+
+        if  exists(select 1 from information_schema.tables where table_name = 'payments_raw_daily' and table_schema = 'bronze')
+        then
+
         raise notice 'Data full loading to [Payments] daily table...';
 
         create unlogged table silver.payments_daily(payment_id VARCHAR(255),payment_date date,method VARCHAR(50),order_id VARCHAR
         (255),order_date date,total NUMERIC(10,2),created_at_bronze TIMESTAMP,created_at_silver timestamp default current_timestamp);
+
         insert into silver.payments_daily(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze)
         select distinct on(payment_id,order_id) payment_id,payment_date,method,order_id,order_date,total,created_at_bronze
         from bronze.payments_raw_daily order BY
@@ -138,7 +146,7 @@ BEGIN
 
         raise notice 'loaded completed in % min. Creating PK for [Payments], both table(daily+main)', clock_timestamp()-first_time;
         first_time:= clock_timestamp();
-        if not exists (select 1 from silver.payments) THEN
+        if not exists (select 1 from pg_constraint where conname='payment_order_pk') THEN
         alter table silver.payments
         add constraint payment_order_pk primary key (payment_id,order_id);
         end if;
@@ -150,18 +158,42 @@ BEGIN
 
         raise notice 'Now inserting to [Payments] main table';
         first_time:= clock_timestamp();
+
         insert into silver.payments
-        select  * from silver.payments_daily;
+        select  * from silver.payments_daily
+        on conflict(payment_id,order_id)
+        do update set
+        payment_date = EXCLUDED.payment_date,
+        method = EXCLUDED.method,
+        order_date = EXCLUDED.order_date,
+        total = EXCLUDED.total,
+        created_at_bronze = EXCLUDED.created_at_bronze,
+        created_at_silver = current_timestamp
+        where (silver.payments.payment_date,
+        silver.payments.method,
+        silver.payments.order_date,
+        silver.payments.total
+        ) is distinct from (EXCLUDED.payment_date,
+        EXCLUDED.method,
+        EXCLUDED.order_date,
+        EXCLUDED.total);
 
         raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
-        
         
 
         drop table bronze.payments_raw_daily;
 
+        else 
+        raise notice 'No data to load, table [payments_raw_daily] is empty';
+
+        end if;
+
 
 
         /*Full load Order_items*/
+
+        if exists (select 1 from information_schema.tables where table_name = 'order_items_raw_daily' and table_schema = 'bronze')
+        then
 
         raise notice 'Data full loading to [ORDER_ITEMS] daily table...';
         first_time:= clock_timestamp();
@@ -174,7 +206,7 @@ BEGIN
 
         raise notice 'Loaded completed in % min, Creating PK for [ORDER_ITEMS], both table(daily+main)', clock_timestamp()-first_time;
         first_time:=clock_timestamp();
-        if not exists (select 1 from silver.order_items) THEN
+        if not exists (select 1 from pg_constraint where conname='order_product_pk') THEN
         alter table silver.order_items
         add constraint order_product_pk primary key (order_id, product_id);
         end if;
@@ -186,20 +218,45 @@ BEGIN
 
         raise notice 'Now inserting to [ORDER_ITEMS] main table';
         first_time:= clock_timestamp();
+
         insert into silver.order_items
-        select * from silver.order_items_daily;
+        select * from silver.order_items_daily
+        on conflict(order_id,product_id)
+        do update SET
+        quantity = EXCLUDED.quantity,
+        unit_price = EXCLUDED.unit_price,
+        total = EXCLUDED.total,
+        created_at_bronze = EXCLUDED.created_at_bronze,
+        created_at_silver = current_timestamp
+        where (silver.order_items.quantity,
+        silver.order_items.unit_price,
+        silver.order_items.total) 
+        is distinct from
+        (EXCLUDED.quantity,
+        EXCLUDED.unit_price,
+        EXCLUDED.total);
 
         raise notice 'loaded completed in % min.', clock_timestamp()-first_time;
     
 
         drop table bronze.order_items_raw_daily;
 
+        else
+        raise notice 'No data to load, table [order_items_raw_daily] is empty';
+        end if;
+
 
 
         /*Full load Customers*/
+
+        if exists (select 1 from information_schema.tables where table_name = 'customers_raw_daily' and table_schema = 'bronze')
+        then
+
         raise notice 'Data full load to [CUSTOMERS] daily table...';
-        first_time=clock_timestamp();
+        first_time:=clock_timestamp();
+
         create unlogged table silver.customers_daily(customer_id VARCHAR(255),name VARCHAR(255),signup_date date,created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
+
         insert into silver.customers_daily(customer_id,name,signup_date,created_at_bronze)
         select distinct on (customer_id) * 
         from bronze.customers_raw_daily
@@ -207,9 +264,14 @@ BEGIN
 
         raise notice 'Loaded completed in % min, Creating PK for [CUSTOMERS], both table(daily+main)', clock_timestamp()-first_time;
         first_time:=clock_timestamp();
-        if not exists (select 1 from silver.customers)then
+        if not exists (select 1 from pg_constraint where conname='customer_id_pk')then
         alter table silver.customers
-        add constraint customer_id_pk primary key (customer_id);
+        add constraint customer_id_pk primary key (customer_id,valid_from);
+        end if;
+
+        if not exists(select 1 from pg_indexes  where indexname='partial_index_customer')then
+        create unique index partial_index_customer on silver.customers(customer_id)
+        where is_valid=true;
         end if;
 
         alter table silver.customers_daily
@@ -219,17 +281,43 @@ BEGIN
 
         raise notice ' Now inserting to [CUSTOMERS] main table';
         first_time:=clock_timestamp();
-        insert into silver.customers
-        select  * from silver.customers_daily;
+
+        update silver.customers a
+        set valid_to=current_date - interval '1 day',
+        is_valid=false
+        from silver.customers_daily b 
+        WHERE a.customer_id=b.customer_id
+        and a.is_valid=true 
+        and (a.name,a.signup_date) is distinct from (b.name,b.signup_date);
+
+        insert into silver.customers(customer_id, name, signup_date, created_at_bronze, 
+        created_at_silver, valid_from, valid_to, is_valid)
+        select customer_id, name, signup_date, created_at_bronze,
+        current_timestamp, current_date, '2050-01-01', true from silver.customers_daily
+        where not exists(
+        select 1 from silver.customers where 
+        silver.customers.customer_id=silver.customers_daily.customer_id
+        and silver.customers.is_valid=true
+        )
+        on conflict(customer_id,valid_from) do nothing;
+
 
         raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
 
 
         drop table bronze.customers_raw_daily;
 
+        else 
+        raise notice 'No data to load, table [customers_raw_daily] is empty';
+        end if;
+
 
 
         /*Full load orders*/
+
+        if exists (select 1 from information_schema.tables where table_name = 'orders_raw_daily' and table_schema = 'bronze')
+        then
+
         raise notice 'Data full load to [ORDERS] daily table...';
         first_time:=clock_timestamp();
         create unlogged table silver.orders_daily(order_id VARCHAR(255),customer_id VARCHAR(255),order_date date,status VARCHAR(255),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
@@ -240,7 +328,7 @@ BEGIN
 
         raise notice 'Full loaded completed in % min, Creating PK for [ORDERS], both table(daily+main)', clock_timestamp()-first_time;
         first_time:=clock_timestamp();
-        if not exists (select 1 from silver.orders) then
+        if not exists (select 1 from pg_constraint where conname='order_customer_pk') then
         alter table silver.orders
         add constraint order_customer_pk primary key (order_id,customer_id);
         end if;
@@ -252,8 +340,17 @@ BEGIN
 
         raise notice 'Now inserting to [ORDERS] main table';
         first_time:=clock_timestamp();
+
         insert into silver.orders
-        select * from silver.orders_daily;
+        select * from silver.orders_daily
+        on conflict(order_id,customer_id)
+        do update SET
+        status = EXCLUDED.status,
+        order_date = EXCLUDED.order_date,
+        created_at_silver = current_timestamp
+        where (silver.orders.status,
+        silver.orders.order_date)is distinct from(EXCLUDED.status,
+        EXCLUDED.order_date);
 
         raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
 
@@ -261,10 +358,18 @@ BEGIN
 
         drop table bronze.orders_raw_daily;
 
+        else 
+        raise notice 'No data to load, table [orders_raw_daily] is empty';
+        end if;
+
 
 
 
         /*Full load products*/
+
+        if exists (select 1 from information_schema.tables where table_name = 'products_raw_daily' and table_schema = 'bronze')
+        then
+
         raise notice 'Data full loading to [Products] daily table...';
         first_time:=clock_timestamp();
         create unlogged table silver.products_daily(product_id VARCHAR(255),name VARCHAR(255),category VARCHAR(255),price NUMERIC(10,2),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
@@ -276,7 +381,7 @@ BEGIN
 
         raise notice 'Full loaded completed in % min, Creating PK for [Products], daily table', clock_timestamp()-first_time;
         first_time:=clock_timestamp();
-        IF NOT EXISTS (SELECT 1 FROM silver.products) THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint where conname='product_pk') THEN
         ALTER TABLE silver.products ADD CONSTRAINT product_pk PRIMARY KEY (product_id);
         END IF;
         alter table silver.products_daily
@@ -285,12 +390,28 @@ BEGIN
 
         raise notice 'Now inserting to [Products] main table';
         first_time:=clock_timestamp();
+
         insert into silver.products
-        select * from silver.products_daily;
+        select * from silver.products_daily
+        on conflict(product_id)
+        do update SET
+        name = EXCLUDED.name,
+        category = EXCLUDED.category,
+        price = EXCLUDED.price,
+        created_at_silver = current_timestamp
+        where (silver.products.name,
+        silver.products.category,
+        silver.products.price)is distinct from(EXCLUDED.name,
+        EXCLUDED.category,
+        EXCLUDED.price);
 
         RAISE NOTICE 'Full data loaded completed in [Products] % min.', clock_timestamp()-first_time;
 
         drop table bronze.products_raw_daily;
+
+        else 
+        raise notice 'No data to load, table [products_raw_daily] is empty';
+        end if;
 
 
 end;
@@ -299,31 +420,12 @@ $$;
 call silver.silver_import_full();
 
 
-drop table silver.products;
-create table silver.products(
-        product_id varchar(100) ,
-        name VARCHAR(255),
-        category VARCHAR(255),
-        price numeric(10,2),
-        created_at_bronze timestamp ,
-        created_at_silver timestamp default current_timestamp
-);
+
 
 ==================
 
 
-select count(*) from silver.customers;
 
-
-alter table silver.order_items drop constraint order_product_pk;
-
-alter table silver.customers drop constraint customer_id_pk;
-
-alter table silver.orders drop constraint order_customer_pk;
-
-alter table silver.products drop constraint product_pk;
-
-alter table silver.payments drop constraint payment_order_pk;
 
 
 ===============
@@ -342,21 +444,6 @@ END;
 $$;
 
 call silver_daily_table_drop();
-
-            
-
-
-
-
-select count(*) from bronze.order_items_raw;
-select count(*) from silver.order_items;
-
-
-
-
-
-
-
 
 
 show data_directory;

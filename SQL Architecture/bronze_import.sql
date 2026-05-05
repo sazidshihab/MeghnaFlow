@@ -116,11 +116,15 @@ Begin
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (customers_raw)
         */
+        if not exists(select 1 from bronze.bronze_ingest_safetynet where table_name = 'customers' and created_at = current_date)
+
+        then
+
         RAISE NOTICE 'Step 1: Starting to ingest Customer data to staging table...';
         create UNLOGGED table bronze.customers_raw_daily(customer_id VARCHAR(255), name VARCHAR(255), signup_date date, created_at_bronze timestamp default current_timestamp);
         
         COPY bronze.customers_raw_daily(customer_id, name, signup_date)
-        FROM PROGRAM 'head -n 50000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_2026-05-04.csv"'
+        FROM PROGRAM 'head -n 5000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_2026-05-03.csv"'
         WITH (FORMAT csv, HEADER true);
 
         RAISE NOTICE 'Step 2: Customer data ingested successfully to staging table and creating index for it....';
@@ -136,12 +140,25 @@ Begin
         select * from bronze.customers_raw_daily;
 
         raise notice 'Step 4: Customer data ingested successfully to main table...';
+
+        /*insert into bronze.bronze_ingest_safetynet(file_name,table_name,file_path, created_at)
+        values('customers_' || current_date || '.csv','customers', '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_ '|| current_date || '.csv','2050-05-04');*/
+
+        else raise notice 'Data already ingested for today';
+        end if;
+
+        
         
 
 
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (products_raw)
        */
+
+        if not exists(select 1 from bronze.bronze_ingest_safetynet where table_name = 'products' and created_at = current_date)
+        then
+
+
         RAISE NOTICE 'Step 1: Starting to ingest Product data to staging table ...';
         create UNLOGGED table bronze.products_raw_daily(product_id varchar(100), name VARCHAR(255), category VARCHAR(255), price numeric(10,2), created_at_bronze timestamp default current_timestamp);
 
@@ -163,17 +180,27 @@ Begin
 
         raise notice 'Step 4: Product data ingested successfully to main table...';
 
+        /*insert into bronze.bronze_ingest_safetynet(file_name,table_name,file_path, created_at)
+        values('products_' || current_date || '.csv','products', '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_'|| current_date || '.csv','2050-05-04')
+        ;*/
+
+        else raise notice 'Data already ingested for today';
+        end if;
+
 
 
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (orders_raw)
         */
+        if not exists(select 1 from bronze.bronze_ingest_safetynet where table_name = 'orders' and created_at = current_date)
+        then
+
         RAISE NOTICE 'Step 1: Starting to ingest Order data to staging table...';
         
         create UNLOGGED table bronze.orders_raw_daily(order_id VARCHAR(255), customer_id VARCHAR(255), order_date date, status VARCHAR(50), created_at_bronze timestamp default current_timestamp);
  
         copy bronze.orders_raw_daily(order_id, customer_id, order_date, status)
-        from PROGRAM 'head -n 5000000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_2026-05-04.csv"'
+        from PROGRAM 'head -n 50000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_2026-05-04.csv"'
         with(format csv, header true);
 
         RAISE NOTICE 'Step 2: Order data ingested successfully to staging table and creating index for it....';
@@ -189,11 +216,20 @@ Begin
         select * from bronze.orders_raw_daily;
 
         raise notice 'Step 4: Order data ingested successfully to main table...';
+
+        /*insert into bronze.bronze_ingest_safetynet(file_name,table_name,file_path, created_at)
+        values('orders_' || current_date || '.csv','orders', '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_'|| current_date || '.csv','2050-05-04')
+        ;*/
+
+        else raise notice 'Data already ingested for today';
+        end if;
  
 
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (order_items_raw)
         */
+        if not exists(select 1 from bronze.bronze_ingest_safetynet where table_name = 'order_items' and created_at = current_date)
+        then
 
 
         RAISE notice 'Step 1: Starting to ingest Order Item data into staging table...';
@@ -201,7 +237,7 @@ Begin
         create UNLOGGED table bronze.order_items_raw_daily(order_id VARCHAR(255), product_id VARCHAR(255), quantity NUMERIC(10,2), unit_price NUMERIC(10,2), total NUMERIC(10,2), created_at_bronze timestamp default current_timestamp);
         
         copy bronze.order_items_raw_daily(order_id, product_id, quantity, unit_price, total)
-        from PROGRAM 'head -n 10000000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_2026-05-04.csv"'
+        from PROGRAM 'head -n 100000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_2026-05-04.csv"'
         with(format csv, header true);
 
         RAISE NOTICE 'Step 2: Order Item data ingested successfully to staging table and creating index for it....';
@@ -217,17 +253,27 @@ Begin
 
         raise notice 'Step 4: Order Item data ingested successfully to main table...';
         
+        /*insert into bronze.bronze_ingest_safetynet(file_name,table_name,file_path, created_at)
+        values('order_items_' || current_date || '.csv','order_items', '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_'|| current_date || '.csv', '2050-05-04')
+        ;*/
+
+        else raise notice 'Data already ingested for today';
+        end if;
+
+        
 
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (payments_raw)
         */
+        if not exists(select 1 from bronze.bronze_ingest_safetynet where table_name = 'payments' and created_at = current_date)
+        then
       
         RAISE NOTICE 'Step 1: Starting to ingest Payment data into staging table...';
         
         create UNLOGGED table bronze.payments_raw_daily(payment_id VARCHAR(255),method VARCHAR(50), order_id VARCHAR(255),  order_date date, total NUMERIC(10,2), payment_date date,   created_at_bronze timestamp default current_timestamp);
        
         copy bronze.payments_raw_daily(payment_id,  method, order_id,  order_date, total, payment_date)
-        from PROGRAM 'head -n 5000000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_2026-05-04.csv"'
+        from PROGRAM 'head -n 50000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_2026-05-04.csv"'
         with(format csv, header true);
 
         RAISE NOTICE 'Step 2: Payment data ingested successfully to staging table and creating index for it......';
@@ -240,6 +286,14 @@ Begin
         select * from bronze.payments_raw_daily;
 
         raise notice 'Step 4: Payment data ingested successfully to main table...';
+
+        /*insert into bronze.bronze_ingest_safetynet(file_name,table_name,file_path, created_at)
+        values('payments_' || current_date || '.csv','payments', '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_'|| current_date || '.csv', '2050-05-04')
+        ;*/
+
+        else raise notice 'Data already ingested for today';
+        end if;
+         
 
 
 
