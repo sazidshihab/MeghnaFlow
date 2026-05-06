@@ -12,5 +12,3 @@ call silver.silver_import_full(); /* Ingesting data into the silver layer from t
 here also daily table contains daily data and raw table contains all time data. */
 
 
-
-

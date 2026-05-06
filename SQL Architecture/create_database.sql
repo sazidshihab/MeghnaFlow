@@ -18,5 +18,6 @@ select schema_name from information_schema.schemata
 create schema bronze;
 create schema silver;
 create schema gold;
+create schema operational_log;
 
 
