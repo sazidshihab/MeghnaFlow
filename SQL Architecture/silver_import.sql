@@ -221,6 +221,8 @@ BEGIN
         from bronze.order_items_raw_daily
         order by order_id,product_id, created_at_bronze desc;
 
+        call silver.silver_order_items_validation();
+
         raise notice 'Loaded completed in % min, Creating PK for [ORDER_ITEMS], both table(daily+main)', clock_timestamp()-first_time;
         first_time:=clock_timestamp();
         if not exists (select 1 from pg_constraint where conname='order_product_pk') THEN
@@ -272,7 +274,8 @@ BEGIN
         raise notice 'Data full load to [CUSTOMERS] daily table...';
         first_time:=clock_timestamp();
 
-        create unlogged table silver.customers_daily(customer_id VARCHAR(255),name VARCHAR(255),signup_date date,created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
+        create unlogged table
+        silver.customers_daily(customer_id VARCHAR(255),name VARCHAR(255),signup_date date,created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
 
         insert into silver.customers_daily(customer_id,name,signup_date,created_at_bronze)
         select distinct on (customer_id)
@@ -356,6 +359,8 @@ BEGIN
         created_at_bronze
         from bronze.orders_raw_daily order BY
         order_id,customer_id,created_at_bronze desc;
+
+        call silver.silver_orders_validation();
 
         raise notice 'Full loaded completed in % min, Creating PK for [ORDERS], both table(daily+main)', clock_timestamp()-first_time;
         first_time:=clock_timestamp();
