@@ -23,13 +23,15 @@ silver_customers_duplicate_count int;
 BEGIN
 
         /*([customers_daily] Duplicate row chk */
+        delete from silver.customers_daily where ctid in( select ctid from(
+        select ctid, row_number()over(partition by customer_id,name,signup_date order by created_at_bronze desc) as cnt from bronze.customers_raw_daily
+        ) as a where  cnt>1);
+        
         select count(*) into silver_customers_duplicate_count from(
         select customer_id,name,signup_date,count(*) as cnt from silver.customers_daily group by customer_id,name,signup_date having count(*)>1
         ) as a;
 
-        delete from silver.customers_daily where ctid in( select ctid from(
-        select ctid, row_number()over(partition by customer_id,name,signup_date order by created_at_bronze desc) as cnt from bronze.customers_raw_daily
-        ) as a where  cnt>1);
+        
 
 
 
@@ -94,13 +96,14 @@ BEGIN
 
 
         /*([ORDERS_ITEMS] Duplicate row chk */
-        delete from silver.order_items_daily where ctid in( select ctid from(
-        select ctid, row_number()over(partition by order_id,product_id,quantity,unit_price,total order by created_at_bronze desc) as cnt from silver.order_items_daily
-        ) as a where  cnt>1);
-
         select count(*) into silver_customers_duplicate_count from(
         select order_id,product_id,quantity,unit_price,total,count(*) as cnt from silver.order_items_daily group by order_id,product_id,quantity,unit_price,total having count(*)>1
         ) as a;
+
+
+        delete from silver.order_items_daily where ctid in( select ctid from(
+        select ctid, row_number()over(partition by order_id,product_id,quantity,unit_price,total order by created_at_bronze desc) as cnt from silver.order_items_daily
+        ) as a where  cnt>1);
 
 
         /*[ORDERS_ITEMS]:Checking for PK null*/
@@ -169,13 +172,15 @@ silver_customers_duplicate_count int;
 BEGIN
 
 /*([ORDERS] Duplicate row chk */
+select count(*) into silver_customers_duplicate_count from(
+select order_id,customer_id,order_date,status,count(*) as cnt from silver.orders_daily group by order_id,customer_id,order_date,status having count(*)>1
+) as a;
+
+
 delete from silver.orders_daily where ctid in( select ctid from(
 select ctid, row_number()over(partition by order_id,customer_id,order_date,status order by created_at_bronze desc) as cnt from silver.orders_daily
 ) as a where  cnt>1);
 
-select count(*) into silver_customers_duplicate_count from(
-select order_id,customer_id,order_date,status,count(*) as cnt from silver.orders_daily group by order_id,customer_id,order_date,status having count(*)>1
-) as a;
 
 
 /*[ORDERS]:Checking for PK null*/
@@ -226,11 +231,18 @@ $$;
 Full cleaning + casting [PAYMENTS] table
 */
 
+/*([PAYMENTS] Duplicate row chk */
+delete from silver.payments_daily where ctid in( select ctid from(
+select ctid, row_number()over(partition by payment_id,payment_date,method,order_id,order_date,total order by created_at_bronze desc) as cnt from silver.payments_daily
+) as a where  cnt>1);
 
 
 
-
-
+/*[PAYMENTS]:Checking for PK null*/
+insert into operational_log.quarantine(table_name, reject_reason, raw_row)
+select 'payments','missing_pk',row_to_json(d)::JSONB
+from silver.payments_daily d where nullif(payment_id,'') is null or nullif(order_id,'') is null ;
+delete from silver.payments_daily where nullif(payment_id,'') is null or nullif(order_id,'') is null ;  
 
 
 
@@ -250,9 +262,7 @@ Deleting any duplicate data came from bronze layer(Secondary safety net):
 
 
 #[payments_daily] Deleting any duplicate data came from bronze layer(Though distinct on ingestion of data on silver layer cuts off the duplicates)
-delete from bronze.payments_raw_daily where ctid in( select ctid from(
-select ctid, row_number()over(partition by payment_id,payment_date,method,order_id,order_date,total order by created_at_bronze desc) as cnt from bronze.payments_raw_daily
-) as a where  cnt>1);
+
 
 #[products_daily] Deleting any duplicate data came from bronze layer(Though distinct on ingestion of data on silver layer cuts off the duplicates)
 delete from bronze.products_raw_daily where ctid in( select ctid from(
@@ -270,10 +280,7 @@ select ctid, row_number()over(partition by product_id,name,category,price order 
 
 
 
-insert into operational_log.quarantine(table_name, reject_reason, raw_row)
-select 'payments','missing_pk',row_to_json(d)::JSONB
-from silver.payments_daily d where payment_id is null or order_id is null or trim(payment_id) = '' or trim(order_id) = '';
-delete from silver.payments_daily where payment_id is null or order_id is null or trim(payment_id) = '' or trim(order_id) = '';
+
 
 
 insert into operational_log.quarantine(table_name, reject_reason, raw_row)
