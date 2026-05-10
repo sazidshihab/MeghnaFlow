@@ -141,12 +141,12 @@ BEGIN
 
         insert into silver.payments_daily(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze)
         select distinct on(payment_id,order_id) 
-        trim(payment_id)::varchar(255),
+        lower(trim(payment_id))::varchar(255),
         case when nullif(trim(payment_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
         then to_date(trim(payment_date),'YYYY-MM-DD')
         end ,
-        trim(method)::varchar(50),
-        trim(order_id)::varchar(255),
+        lower(trim(method))::varchar(50),
+        lower(trim(order_id))::varchar(255),
         case when nullif(trim(order_date),'') ~'^\d{4}-\d{2}-\d{2}$'
         then to_date(trim(order_date),'YYYY-MM-DD')
         end ,
@@ -212,8 +212,8 @@ BEGIN
         
         insert into silver.order_items_daily (order_id, product_id, quantity, unit_price, total, created_at_bronze)
         select distinct on (order_id,product_id) 
-        trim(order_id)::varchar(255),
-        trim(product_id)::varchar(255),
+        lower(trim(order_id))::varchar(255),
+        lower(trim(product_id))::varchar(255),
         trim(quantity::text)::numeric(10,2),
         trim(unit_price::text)::numeric(10,2),
         trim(total::text)::numeric(10,2),
@@ -279,8 +279,8 @@ BEGIN
 
         insert into silver.customers_daily(customer_id,name,signup_date,created_at_bronze)
         select distinct on (customer_id)
-        trim(customer_id)::varchar(255),
-        trim(name)::varchar(255),
+        lower(trim(customer_id))::varchar(255),
+        lower(trim(name))::varchar(255),
         case when nullif(trim(signup_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
         then to_date(trim(signup_date),'YYYY-MM-DD') end,
         created_at_bronze
@@ -351,11 +351,11 @@ BEGIN
         
         insert into silver.orders_daily(order_id,customer_id,order_date,status,created_at_bronze)
         select distinct on (order_id,customer_id)
-        trim(order_id)::varchar(255),
-        trim(customer_id)::varchar(255),
+        lower(trim(order_id))::varchar(255),
+        lower(trim(customer_id))::varchar(255),
         case when nullif(trim(order_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
         then to_date(trim(order_date),'YYYY-MM-DD') end,
-        trim(status)::varchar(255),
+        lower(trim(status))::varchar(255),
         created_at_bronze
         from bronze.orders_raw_daily order BY
         order_id,customer_id,created_at_bronze desc;
@@ -411,9 +411,9 @@ BEGIN
         create unlogged table silver.products_daily(product_id VARCHAR(255),name VARCHAR(255),category VARCHAR(255),price NUMERIC(10,2),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
         insert into silver.products_daily(product_id,name,category,price,created_at_bronze)
         select distinct on(product_id)
-        trim(product_id)::varchar(255),
-        trim(name)::varchar(255),
-        trim(category)::varchar(255),
+        lower(trim(product_id))::varchar(255),
+        lower(trim(name))::varchar(255),
+        lower(trim(category))::varchar(255),
         trim(price::text)::numeric(10,2),
         created_at_bronze
         from bronze.products_raw_daily order by 
