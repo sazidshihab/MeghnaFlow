@@ -113,6 +113,12 @@ as $$
 
 Begin
 
+
+        /*Inserting ingestion_id to table:[This table is for one session] */
+        truncate table operational_log.ingestion_id;
+        insert into operational_log.ingestion_id(created_at) values(now());
+
+
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (customers_raw)
         */

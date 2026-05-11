@@ -14,6 +14,7 @@ language PLPGSQL
 as $$
 
 declare 
+bronze_customers_row_count int;
 silver_customrs_row_count int;
 silver_customers_null_pk_count int;
 silver_customers_null_count int;
@@ -22,6 +23,12 @@ silver_customers_future_past_count int;
 
 
 BEGIN
+
+
+        /*[customers_daily]:Bronze full row count: */
+        select count(*) into bronze_customers_row_count from bronze.customers_raw_daily;
+
+
 
         /*([customers_daily] Duplicate row chk */
         delete from silver.customers_daily where ctid in( select ctid from(
@@ -70,11 +77,26 @@ BEGIN
         select count(*) into silver_customrs_row_count from silver.customers_daily;
 
         /*display*/
-        raise notice '[customers]row count: %',silver_customrs_row_count;
+        raise notice '[customers]bronze row count: %',bronze_customers_row_count;
+        raise notice '[customers]silver row count: %',silver_customrs_row_count;
         raise notice '[customers]null pk count: %',silver_customers_null_pk_count;
         raise notice '[customers]other null count: %',silver_customers_null_count;
         raise notice '[customers]duplicate count: %',silver_customers_duplicate_count;
         raise notice '[customers]future/past count: %',silver_customers_future_past_count;
+
+        /*Inserting to log table: */
+        insert into operational_log.customers_log(ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,executing_time)
+        values((select ingestion_id from operational_log.ingestion_id),
+        'customers',
+        bronze_customers_row_count,
+        silver_customrs_row_count,
+        silver_customers_null_pk_count,
+        silver_customers_null_count,
+        silver_customers_duplicate_count,
+        silver_customers_future_past_count,
+        silver_customers_null_pk_count+silver_customers_null_count+silver_customers_duplicate_count+silver_customers_future_past_count,
+        null
+        );
 
 
 /*
@@ -93,16 +115,20 @@ create or replace procedure silver.silver_order_items_validation()
 language PLPGSQL
 as $$
 DECLARE
+bronze_order_items_row_count int;
 silver_order_items_row_count int;
 silver_order_items_null_pk_count int;
 silver_order_items_null_count int;
-silver_customers_duplicate_count int;
+silver_order_items_duplicate_count int;
 
 BEGIN
 
+        /*[ORDERS_ITEMS]:Bronze full row count: */
+        select count(*) into bronze_order_items_row_count from bronze.order_items_raw_daily;
+
 
         /*([ORDERS_ITEMS] Duplicate row chk */
-        select count(*) into silver_customers_duplicate_count from(
+        select count(*) into silver_order_items_duplicate_count from(
         select order_id,product_id,quantity,unit_price,total,count(*) as cnt from silver.order_items_daily group by order_id,product_id,quantity,unit_price,total having count(*)>1
         ) as a;
 
@@ -156,10 +182,25 @@ BEGIN
         select count(*) into silver_order_items_row_count from silver.order_items_daily;
 
         /*display*/
-        raise notice '[order_items]row count: %',silver_order_items_row_count;
+        raise notice '[order_items]bronze row count: %',bronze_order_items_row_count;
+        raise notice '[order_items]silver row count: %',silver_order_items_row_count;
         raise notice '[order_items]null pk count: %',silver_order_items_null_pk_count;
         raise notice '[order_items]other null count: %',silver_order_items_null_count;
-        raise notice '[order_items]duplicate count: %',silver_customers_duplicate_count;
+        raise notice '[order_items]duplicate count: %',silver_order_items_duplicate_count;
+
+        /*Inserting to log table: */
+        insert into operational_log.order_items_log(
+        ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,quarantine_count,executing_time)
+        values((select ingestion_id from operational_log.ingestion_id),
+        'order_items',
+        bronze_order_items_row_count,
+        silver_order_items_row_count,
+        silver_order_items_null_pk_count,
+        silver_order_items_null_count,
+        silver_order_items_duplicate_count,
+        silver_order_items_null_pk_count+silver_order_items_null_count+silver_order_items_duplicate_count,
+        null  
+        );
 
 END;
 $$;
@@ -177,6 +218,7 @@ create or replace procedure silver.silver_orders_validation()
 language PLPGSQL
 as $$   
 DECLARE
+bronze_orders_row_count int;
 silver_orders_row_count int;
 silver_orders_null_pk_count int;
 silver_orders_null_count int;
@@ -184,6 +226,9 @@ silver_orders_duplicate_count int;
 silver_orders_future_past_count int;
 
 BEGIN
+/*[ORDERS]:Bronze full row count: */
+select count(*) into bronze_orders_row_count from bronze.orders_raw_daily;
+
 
 /*([ORDERS] Duplicate row chk */
 select count(*) into silver_orders_duplicate_count from(
@@ -233,11 +278,27 @@ select count(*) into silver_orders_row_count from silver.orders_daily;
 
 
 /*display*/
-raise notice '[orders]row count: %',silver_orders_row_count;
+raise notice '[orders]bronze row count: %',bronze_orders_row_count;
+raise notice '[orders]silver row count: %',silver_orders_row_count;
 raise notice '[orders]null pk count: %',silver_orders_null_pk_count;
 raise notice '[orders]other null count: %',silver_orders_null_count;
 raise notice '[orders]duplicate count: %',silver_orders_duplicate_count;
 raise notice '[orders]future or past date count: %',silver_orders_future_past_count;
+
+/*Inserting to log table: */
+insert into operational_log.orders_log(
+ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,executing_time)
+values((select ingestion_id from operational_log.ingestion_id),
+'orders',
+bronze_orders_row_count,
+silver_orders_row_count,
+silver_orders_null_pk_count,
+silver_orders_null_count,
+silver_orders_duplicate_count,
+silver_orders_null_pk_count+silver_orders_null_count+silver_orders_duplicate_count,
+silver_orders_future_past_count,
+null
+);
 
 END;
 $$;
@@ -256,6 +317,7 @@ create or replace procedure silver.silver_payments_validation()
 language PLPGSQL
 as $$   
 DECLARE
+bronze_payments_row_count int;
 silver_payments_row_count int;
 silver_payments_null_pk_count int;
 silver_payments_null_count int;
@@ -264,6 +326,9 @@ silver_payments_future_past_count int;
 
 
 BEGIN
+
+/*[PAYMENTS]:Bronze full row count: */
+select count(*) into bronze_payments_row_count from bronze.payments_raw_daily;
 
 /*([PAYMENTS] Duplicate row chk */
 select count(*) into silver_payments_duplicate_count from(
@@ -331,11 +396,31 @@ or order_date > now()+interval '1 day' or order_date < '2015-01-01';
 /*[PAYMENTS]:Count succeed rows */
 select count(*) into silver_payments_row_count from silver.payments_daily;
 
-raise notice '[payments]row count: %',silver_payments_row_count;
+
+raise notice '[payments]bronze row count: %',bronze_payments_row_count;
+raise notice '[payments]silver row count: %',silver_payments_row_count;
 raise notice '[payments]null pk count: %',silver_payments_null_pk_count;
 raise notice '[payments]other null count: %',silver_payments_null_count;
 raise notice '[payments]duplicate count: %',silver_payments_duplicate_count;
 raise notice '[payments]future or past date count: %',silver_payments_future_past_count;
+
+/*Inserting to log table: */
+insert into operational_log.payments_log(
+ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,executing_time)
+values(
+    (select ingestion_id from operational_log.ingestion_id),
+    'payments',
+    bronze_payments_row_count,
+    silver_payments_row_count,
+    silver_payments_null_pk_count,
+    silver_payments_null_count,
+    silver_payments_duplicate_count,
+    silver_payments_future_past_count,
+    silver_payments_null_pk_count + silver_payments_null_count + silver_payments_duplicate_count + silver_payments_future_past_count,
+    null
+    
+);
+raise notice'done';
 
 end;
 $$;
@@ -354,11 +439,15 @@ create or replace procedure silver.silver_products_validation()
 language PLPGSQL
 as $$
 DECLARE
+bronze_products_row_count int;
 silver_products_row_count int;
 silver_products_null_pk_count int;
 silver_products_null_count int;
 silver_products_duplicate_count int;
 BEGIN
+
+/*[PRODUCTS]:bronze row count  */
+select count(*) into bronze_products_row_count from bronze.products_raw_daily;
 /*
 Deleting duplicate:
 */
@@ -407,7 +496,9 @@ Count succeed rows:
 */
 select count(*) into silver_products_row_count from silver.products_daily;
 
-raise notice '[products]row count: %',silver_products_row_count;
+
+raise notice '[products]bronze row count: %',bronze_products_row_count;
+raise notice '[products]silver row count: %',silver_products_row_count;
 raise notice '[products]null pk count: %',silver_products_null_pk_count;
 raise notice '[products]other null count: %',silver_products_null_count;
 raise notice '[products]duplicate count: %',silver_products_duplicate_count;
@@ -415,36 +506,6 @@ raise notice '[products]duplicate count: %',silver_products_duplicate_count;
 end;
 $$;
 
-
-
-
-
-
-
-
-
-
-
-
-#[products_daily] Deleting any duplicate data came from bronze layer(Though distinct on ingestion of data on silver layer cuts off the duplicates)
-
-=================================
-
-/*Qurantine and delete any null/missing PK data came from bronze layer:*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-==================================
-
-
+/*
+[PRODUCTS] ends
+*/

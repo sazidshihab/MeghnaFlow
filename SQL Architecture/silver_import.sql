@@ -119,6 +119,12 @@ CREATE OR REPLACE PROCEDURE silver.silver_import_full()
 AS $$ 
 declare first_time timestamp := clock_timestamp();
 second_time timestamp;
+customers_start_time timestamp ;
+order_items_start_time timestamp ;
+orders_start_time timestamp ;
+payments_start_time timestamp ;
+products_start_time timestamp ;
+
 BEGIN
 
 
@@ -130,6 +136,8 @@ BEGIN
 
 
         /*Full load payments*/
+        payments_start_time := clock_timestamp();
+
 
         if  exists(select 1 from information_schema.tables where table_name = 'payments_raw_daily' and table_schema = 'bronze')
         then
@@ -201,10 +209,17 @@ BEGIN
 
         end if;
 
+        update operational_log.payments_log
+        set last_update_time = clock_timestamp()-payments_start_time
+        where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+        
+        
+
 
 
         /*Full load Order_items*/
 
+        order_items_start_time := clock_timestamp();
         if exists (select 1 from information_schema.tables where table_name = 'order_items_raw_daily' and table_schema = 'bronze')
         then
 
@@ -266,9 +281,15 @@ BEGIN
         raise notice 'No data to load, table [order_items_raw_daily] is empty';
         end if;
 
+        update operational_log.order_items_log
+        set executing_time= clock_timestamp()-order_items_start_time
+        where ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+
 
 
         /*Full load Customers*/
+
+        customers_start_time:= clock_timestamp();
 
         if exists (select 1 from information_schema.tables where table_name = 'customers_raw_daily' and table_schema = 'bronze')
         then
@@ -340,9 +361,15 @@ BEGIN
         raise notice 'No data to load, table [customers_raw_daily] is empty';
         end if;
 
+        update operational_log.customers_log
+        set executing_time=clock_timestamp()-customers_start_time
+        where ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+
 
 
         /*Full load orders*/
+
+        orders_start_time:= clock_timestamp();
 
         if exists (select 1 from information_schema.tables where table_name = 'orders_raw_daily' and table_schema = 'bronze')
         then
@@ -400,10 +427,16 @@ BEGIN
         raise notice 'No data to load, table [orders_raw_daily] is empty';
         end if;
 
+        update operational_log.orders_log
+        set executing_time=clock_timestamp()-orders_start_time
+        where ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+
 
 
 
         /*Full load products*/
+
+        products_start_time:= clock_timestamp();
 
         if exists (select 1 from information_schema.tables where table_name = 'products_raw_daily' and table_schema = 'bronze')
         then
@@ -458,6 +491,10 @@ BEGIN
         raise notice 'No data to load, table [products_raw_daily] is empty';
         end if;
 
+        update operational_log.products_log
+        set executing_time=clock_timestamp()-products_start_time
+        where ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+
 
 end;
 $$;
@@ -492,3 +529,9 @@ call silver_daily_table_drop();
 
 
 show data_directory;
+
+
+
+
+
+
