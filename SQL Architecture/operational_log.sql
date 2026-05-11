@@ -17,5 +17,8 @@ $$;
 
 call operational_log.quarantine_table_create();
 
+select * from operational_log.quarantine ;
+select * from operational_log.bronze_ingest_safetynet;
 
-select * from operational_log.quarantine;
+
+select raw_row->>'name',raw_row->>'customer_id',raw_row->>'signup_date'  from operational_log.quarantine;

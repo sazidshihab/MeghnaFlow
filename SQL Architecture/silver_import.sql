@@ -155,6 +155,8 @@ BEGIN
         from bronze.payments_raw_daily order BY
         payment_id,order_id,created_at_bronze desc;
 
+        call silver.silver_payments_validation();
+
         raise notice 'loaded completed in % min. Creating PK for [Payments], both table(daily+main)', clock_timestamp()-first_time;
         first_time:= clock_timestamp();
         if not exists (select 1 from pg_constraint where conname='payment_order_pk') THEN
@@ -418,6 +420,8 @@ BEGIN
         created_at_bronze
         from bronze.products_raw_daily order by 
         product_id, created_at_bronze desc;
+
+        call silver.silver_products_validation();
 
 
         raise notice 'Full loaded completed in % min, Creating PK for [Products], daily table', clock_timestamp()-first_time;

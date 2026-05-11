@@ -18,6 +18,7 @@ silver_customrs_row_count int;
 silver_customers_null_pk_count int;
 silver_customers_null_count int;
 silver_customers_duplicate_count int;
+silver_customers_future_past_count int;
 
 
 BEGIN
@@ -61,16 +62,19 @@ BEGIN
         select 'customers','future_or_past_date',row_to_json(d)::JSONB
         from silver.customers_daily d where signup_date > now() or signup_date < '2015-01-01';
 
+        select count(*) into silver_customers_future_past_count from silver.customers_daily where signup_date > now()+interval '1 day' or signup_date < '2015-01-01';
+
         delete from silver.customers_daily where signup_date > now() or signup_date < '2015-01-01';
 
         /*[customers_daily]:Count succeed rows */
         select count(*) into silver_customrs_row_count from silver.customers_daily;
 
         /*display*/
-        raise notice '[customers_daily]row count: %',silver_customrs_row_count;
-        raise notice '[customers_daily]null pk count: %',silver_customers_null_pk_count;
-        raise notice '[customers_daily]other null count: %',silver_customers_null_count;
-        raise notice '[customers_daily]duplicate count: %',silver_customers_duplicate_count;
+        raise notice '[customers]row count: %',silver_customrs_row_count;
+        raise notice '[customers]null pk count: %',silver_customers_null_pk_count;
+        raise notice '[customers]other null count: %',silver_customers_null_count;
+        raise notice '[customers]duplicate count: %',silver_customers_duplicate_count;
+        raise notice '[customers]future/past count: %',silver_customers_future_past_count;
 
 
 /*
@@ -133,12 +137,19 @@ BEGIN
         /*Pushing to quarantine: where total is null*/
         insert into operational_log.quarantine(table_name, reject_reason, raw_row)
         select 'order_items','missing_required_fields',row_to_json(d)::JSONB
-        from silver.order_items_daily d where  nullif(total::text,'') is null or total<=0 or nullif(quantity::text,'') is null or quantity<=0;
+        from silver.order_items_daily d where  nullif(total::text,'') is null or  nullif(quantity::text,'') is null ;
 
-        select count(*) into silver_order_items_null_count from silver.order_items_daily where  nullif(total::text,'') is null or total<=0 or nullif(quantity::text,'') is null or quantity<=0;
+        select count(*) into silver_order_items_null_count from silver.order_items_daily where  nullif(total::text,'') is null or  nullif(quantity::text,'') is null ;
 
         /*deleting where total is null*/
-        delete from silver.order_items_daily where  nullif(total::text,'') is null or total<=0;
+        delete from silver.order_items_daily where  nullif(total::text,'') is null;
+
+        /*Checking negative values:*/
+        insert into operational_log.quarantine(table_name, reject_reason, raw_row)
+        select 'order_items','negative_total',row_to_json(d)::JSONB
+        from silver.order_items_daily d where total < 0 or quantity < 0;
+
+        delete from silver.order_items_daily where total < 0 or quantity < 0;
 
 
         /*[ORDERS_ITEMS]:Count succeed rows */
@@ -169,12 +180,13 @@ DECLARE
 silver_orders_row_count int;
 silver_orders_null_pk_count int;
 silver_orders_null_count int;
-silver_customers_duplicate_count int;
+silver_orders_duplicate_count int;
+silver_orders_future_past_count int;
 
 BEGIN
 
 /*([ORDERS] Duplicate row chk */
-select count(*) into silver_customers_duplicate_count from(
+select count(*) into silver_orders_duplicate_count from(
 select order_id,customer_id,order_date,status,count(*) as cnt from silver.orders_daily group by order_id,customer_id,order_date,status having count(*)>1
 ) as a;
 
@@ -209,18 +221,23 @@ delete from silver.orders_daily where nullif(order_date::text,'') is null or nul
 /*[ORDERS]:Future or way past dates: */
 insert into operational_log.quarantine(table_name, reject_reason, raw_row)
 select 'orders','future_or_past_date',row_to_json(d)::JSONB
-from silver.orders_daily d where order_date > now() or order_date < '2015-01-01';
+from silver.orders_daily d where order_date > now()+interval '1 day' or order_date < '2015-01-01';
 
-delete from silver.orders_daily where order_date > now() or order_date < '2015-01-01';
+select count(*) into silver_orders_future_past_count from silver.orders_daily where order_date > now()+interval '1 day' or order_date < '2015-01-01';
+
+delete from silver.orders_daily where order_date > now()+interval '1 day' or order_date < '2015-01-01';
 
 
 /*[ORDERS]:Count succeed rows */
 select count(*) into silver_orders_row_count from silver.orders_daily;
 
+
+/*display*/
 raise notice '[orders]row count: %',silver_orders_row_count;
 raise notice '[orders]null pk count: %',silver_orders_null_pk_count;
 raise notice '[orders]other null count: %',silver_orders_null_count;
-raise notice '[orders]duplicate count: %',silver_customers_duplicate_count;
+raise notice '[orders]duplicate count: %',silver_orders_duplicate_count;
+raise notice '[orders]future or past date count: %',silver_orders_future_past_count;
 
 END;
 $$;
@@ -242,12 +259,14 @@ DECLARE
 silver_payments_row_count int;
 silver_payments_null_pk_count int;
 silver_payments_null_count int;
-silver_customers_duplicate_count int;
+silver_payments_duplicate_count int;
+silver_payments_future_past_count int;
+
 
 BEGIN
 
 /*([PAYMENTS] Duplicate row chk */
-select count(*) into silver_customers_duplicate_count from(
+select count(*) into silver_payments_duplicate_count from(
 select payment_id,payment_date,method,order_id,order_date,total,count(*) as cnt from silver.payments_daily group by payment_id,payment_date,method,order_id,order_date,total having count(*)>1
 )as a;
 
@@ -279,20 +298,30 @@ update silver.payments_daily
 set order_date=(select a.order_date from silver.orders a where a.order_id=payments_daily.order_id)
 where nullif(order_date::text,'') is null;
 
-select count(*) into silver_payments_null_count from silver.payments_daily where nullif(order_date::text,'') is null or nullif(total::text,'') is null or total < 0 or nullif(payment_date::text,'') is null;
+select count(*) into silver_payments_null_count from silver.payments_daily where nullif(order_date::text,'') is null or nullif(total::text,'') is null  or nullif(payment_date::text,'') is null;
 
 insert into operational_log.quarantine(table_name, reject_reason, raw_row)
 select 'payments','missing_required_fields',row_to_json(d)::JSONB
-from silver.payments_daily d where nullif(order_date::text,'') is null or nullif(total::text,'') is null or total < 0 or nullif(payment_date::text,'') is null;
+from silver.payments_daily d where nullif(order_date::text,'') is null or nullif(total::text,'') is null  or nullif(payment_date::text,'') is null;
 
-delete from silver.payments_daily where nullif(total::text,'') is null or total < 0 or nullif(order_date::text,'') is null or nullif(payment_date::text,'') is null;
+delete from silver.payments_daily where nullif(total::text,'') is null or  nullif(order_date::text,'') is null or nullif(payment_date::text,'') is null;
 
+
+/*Checking negative values in total column: */
+insert into operational_log.quarantine(table_name, reject_reason, raw_row)
+select 'payments','negative_total',row_to_json(d)::JSONB
+from silver.payments_daily d where total < 0;
+
+delete from silver.payments_daily where total < 0;
 
 
 /*[PAYMENTS]:Future or way past dates: */
 insert into operational_log.quarantine(table_name, reject_reason, raw_row)
 select 'payments','future_or_past_date',row_to_json(d)::JSONB
 from silver.payments_daily d where payment_date > now()+interval '1 day' or payment_date < '2015-01-01'
+or order_date > now()+interval '1 day' or order_date < '2015-01-01';
+
+select count(*) into silver_payments_future_past_count from silver.payments_daily where payment_date > now()+interval '1 day' or payment_date < '2015-01-01'
 or order_date > now()+interval '1 day' or order_date < '2015-01-01';
 
 delete from silver.payments_daily where payment_date > now()+interval '1 day' or payment_date < '2015-01-01'
@@ -305,30 +334,99 @@ select count(*) into silver_payments_row_count from silver.payments_daily;
 raise notice '[payments]row count: %',silver_payments_row_count;
 raise notice '[payments]null pk count: %',silver_payments_null_pk_count;
 raise notice '[payments]other null count: %',silver_payments_null_count;
-raise notice '[payments]duplicate count: %',silver_customers_duplicate_count;
+raise notice '[payments]duplicate count: %',silver_payments_duplicate_count;
+raise notice '[payments]future or past date count: %',silver_payments_future_past_count;
 
 end;
 $$;
 
-=================================
 /*
-Deleting any duplicate data came from bronze layer(Secondary safety net):
+[ORDERS] ends
 */
 
+=================================
+
+/*
+Full cleaning + casting [PRODUCTS] table
+*/
+
+create or replace procedure silver.silver_products_validation()
+language PLPGSQL
+as $$
+DECLARE
+silver_products_row_count int;
+silver_products_null_pk_count int;
+silver_products_null_count int;
+silver_products_duplicate_count int;
+BEGIN
+/*
+Deleting duplicate:
+*/
+select count(*) into silver_products_duplicate_count from(
+    select product_id,name,category,price,count(*) from silver.products_daily group by product_id,name,category,price having count(*)>1) as a;
+
+delete from silver.products_daily where ctid in( select ctid from(
+select ctid, row_number()over(partition by product_id,name,category,price order by created_at_bronze desc) as cnt from silver.products_daily
+) as a where  cnt>1);
+
+
+/*
+Checking for PK null:
+*/
+insert into operational_log.quarantine(table_name, reject_reason, raw_row)
+select 'products','missing_pk',row_to_json(d)::JSONB
+from silver.products_daily d where nullif(product_id,'') is null;
+
+select count(*) into silver_products_null_pk_count from silver.products_daily where nullif(product_id,'') is null;
+
+delete from silver.products_daily where nullif(product_id,'') is null;
+
+
+/*
+Checking for missing/null fields:
+*/
+insert into operational_log.quarantine(table_name, reject_reason, raw_row)
+select 'products','missing_required_fields',row_to_json(d)::JSONB
+from silver.products_daily d where nullif(name,'') is null or nullif(category,'') is null or nullif(price::text,'') is null;
+
+select count(*) into silver_products_null_count from silver.products_daily where nullif(name,'') is null or nullif(category,'') is null or nullif(price::text,'') is null;
+
+delete from silver.products_daily where nullif(name,'') is null or nullif(category,'') is null or nullif(price::text,'') is null;
+
+/*
+Checking negative values:
+*/
+insert into operational_log.quarantine(table_name, reject_reason, raw_row)
+select 'products','negative_values',row_to_json(d)::JSONB
+from silver.products_daily d where price < 0;
+
+delete from silver.products_daily where price < 0;
+
+/*
+Count succeed rows:
+*/
+select count(*) into silver_products_row_count from silver.products_daily;
+
+raise notice '[products]row count: %',silver_products_row_count;
+raise notice '[products]null pk count: %',silver_products_null_pk_count;
+raise notice '[products]other null count: %',silver_products_null_count;
+raise notice '[products]duplicate count: %',silver_products_duplicate_count;
+
+end;
+$$;
 
 
 
 
-#[orders_daily] Deleting any duplicate data came from bronze layer(Though distinct on ingestion of data on silver layer cuts off the duplicates)
 
 
-#[payments_daily] Deleting any duplicate data came from bronze layer(Though distinct on ingestion of data on silver layer cuts off the duplicates)
+
+
+
+
 
 
 #[products_daily] Deleting any duplicate data came from bronze layer(Though distinct on ingestion of data on silver layer cuts off the duplicates)
-delete from bronze.products_raw_daily where ctid in( select ctid from(
-select ctid, row_number()over(partition by product_id,name,category,price order by created_at_bronze desc) as cnt from bronze.products_raw_daily
-) as a where  cnt>1);
 
 =================================
 
@@ -344,10 +442,7 @@ select ctid, row_number()over(partition by product_id,name,category,price order 
 
 
 
-insert into operational_log.quarantine(table_name, reject_reason, raw_row)
-select 'products','missing_pk',row_to_json(d)::JSONB
-from silver.products_daily d where product_id is null or trim(product_id) = '';
-delete from silver.products_daily where product_id is null or trim(product_id) = '';
+
 
 
 ==================================
