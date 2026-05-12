@@ -115,7 +115,7 @@ Ingesting data into the silver layer from the bronze layer (FULL LOAD): Only run
 
 
 CREATE OR REPLACE PROCEDURE silver.silver_import_full()
- LANGUAGE plpgsql
+LANGUAGE plpgsql
 AS $$ 
 declare first_time timestamp;
 second_time timestamp;
@@ -143,7 +143,7 @@ BEGIN
         if  exists(select 1 from information_schema.tables where table_name = 'payments_raw_daily' and table_schema = 'bronze')
         then    /* Checking if payments_daily alreday exists or not*/
 
-                RAISE NOTICE 'Data loading started for [payments_daily] table,,,';
+                RAISE NOTICE 'Data loading started for [payments_daily] table,,,--->';
 
                 create unlogged table silver.payments_daily(payment_id VARCHAR(255),payment_date date,method VARCHAR(50),order_id VARCHAR
                 (255),order_date date,total NUMERIC(10,2),created_at_bronze TIMESTAMP,created_at_silver timestamp default current_timestamp);
@@ -168,7 +168,7 @@ BEGIN
 
                 RAISE NOTICE 'Data full loaded to [payments_daily] table in % min.', clock_timestamp()-first_time;
 
-                RAISE NOTICE 'PK task started for [Payments] table,,,';
+                RAISE NOTICE 'PK task started for [payments_daily] table,,,';
 
                 first_time:= clock_timestamp();
                 if not exists (select 1 from pg_constraint where conname='payment_order_pk') THEN /*If payments table has no PK already, creating one*/
@@ -179,7 +179,7 @@ BEGIN
                 alter table silver.payments_daily  /*Creating PK for payments_daily table*/
                 add constraint payment_order_pk_daily primary key (payment_id,order_id);
 
-                RAISE NOTICE 'PK task completed [Payments] in % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'PK task completed [payments_daily] in % min.', clock_timestamp()-first_time;
 
                 RAISE NOTICE 'Now inserting to [Payments] main table';
                 first_time:= clock_timestamp();
@@ -204,13 +204,13 @@ BEGIN
                 EXCLUDED.order_date,
                 EXCLUDED.total);
 
-                RAISE NOTICE 'Loaded completed in % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'Data full loaded to [payments] main table in % min.<---', clock_timestamp()-first_time;
                 
 
                 drop table bronze.payments_raw_daily; /*Dropping payments bronze daily table */ 
 
         else 
-                RAISE NOTICE 'New data already inserted to [Payments] table, no data to load...';
+                RAISE NOTICE 'New data already inserted to [payments] table, no data to load...';
 
         end if;
 
@@ -229,7 +229,7 @@ BEGIN
         if exists (select 1 from information_schema.tables where table_name = 'order_items_raw_daily' and table_schema = 'bronze')
         then     /* Checking if order_items_daily alreday exists or not*/
 
-                RAISE NOTICE 'Data loading started for [order_items] table,,,';
+                RAISE NOTICE 'Data loading started for [order_items_daily] table,,,--->';
                
                 create unlogged table silver.order_items_daily(order_id VARCHAR(255),product_id VARCHAR(255),quantity NUMERIC(10,2),unit_price NUMERIC(10,2),total NUMERIC(10,2),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
                 
@@ -248,7 +248,7 @@ BEGIN
 
                 RAISE NOTICE 'Data full loaded to [order_items_daily] table in % min.', clock_timestamp()-first_time;
 
-                RAISE NOTICE 'PK task started for [order_items] table,,,';
+                RAISE NOTICE 'PK task started for [order_items_daily] table,,,';
 
                 first_time:=clock_timestamp();
 
@@ -261,9 +261,9 @@ BEGIN
                 alter table silver.order_items_daily /*Creating PK for order_items table*/
                 add constraint order_product_pk_daily primary key (order_id, product_id);
 
-                RAISE NOTICE 'PK loaded, complete [ORDER_ITEMS] in % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'PK loaded, complete [order_items_daily] in % min.', clock_timestamp()-first_time;
 
-                raise notice 'Now inserting to [ORDER_ITEMS] main table';
+                RAISE NOTICE 'Now inserting to [order_items] main table';
 
                 first_time:= clock_timestamp();
 
@@ -284,12 +284,12 @@ BEGIN
                 EXCLUDED.unit_price,
                 EXCLUDED.total);
 
-                raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'Data full loaded to [order_items] main table in % min.<---', clock_timestamp()-first_time;
 
                 drop table bronze.order_items_raw_daily; /*Dropping order_items bronze daily table */
 
         else
-                raise notice 'New data already inserted to [ORDER_ITEMS] table, no data to load...';
+                RAISE NOTICE 'New data already inserted to [order_items] table, no data to load...';
         end if;
 
         update operational_log.order_items_log /*Updating log table[calculating executing time]*/
@@ -305,7 +305,7 @@ BEGIN
         if exists (select 1 from information_schema.tables where table_name = 'customers_raw_daily' and table_schema = 'bronze')
         then  /* Checking if customers_daily alreday exists or not*/
 
-                RAISE NOTICE 'Data loading started for [customers] table,,,';
+                RAISE NOTICE 'Data loading started for [customers_daily] table,,,--->';
                 first_time:=clock_timestamp();
 
                 create unlogged table
@@ -325,7 +325,7 @@ BEGIN
 
                 RAISE NOTICE 'Data full loaded to [customers_daily] table in % min.', clock_timestamp()-first_time;
 
-                RAISE NOTICE 'PK task started for [customers] table,,,';
+                RAISE NOTICE 'PK task started for [customers_daily] table,,,';
 
                 first_time:=clock_timestamp();
 
@@ -344,9 +344,9 @@ BEGIN
                 alter table silver.customers_daily             /*Creating PK for customers_daily table*/
                 add constraint customer_id_pk_daily primary key (customer_id);
 
-                RAISE NOTICE 'PK loaded, complete [CUSTOMERS] in % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'PK loaded, complete [customers_daily] in % min.', clock_timestamp()-first_time;
 
-                raise notice ' Now inserting to [CUSTOMERS] main table';
+                RAISE NOTICE 'Now inserting to [customers] main table';
 
                 first_time:=clock_timestamp();
 
@@ -374,13 +374,13 @@ BEGIN
                 ); /*Here, we are inserting new rows, if previous version is already updated to false.*/
 
 
-                RAISE NOTICE 'Loaded completed in % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'Data full loaded to [customers] main table in % min.<---', clock_timestamp()-first_time;
 
 
                 drop table bronze.customers_raw_daily;
 
         else 
-                RAISE NOTICE 'New data already inserted to [ORDER_ITEMS] table, no data to load...';
+                RAISE NOTICE 'New data already inserted to [customers] table, no data to load...';
         end if;
 
         update operational_log.customers_log /*Updating log table*/
@@ -390,66 +390,71 @@ BEGIN
 
 
         /*Full load orders*/
-
+        
+        first_time := clock_timestamp();
         orders_start_time:= clock_timestamp();
 
         if exists (select 1 from information_schema.tables where table_name = 'orders_raw_daily' and table_schema = 'bronze')
-        then
+        then /*If orders table exists, loading data to orders table*/
 
-        raise notice 'Data full load to [ORDERS] daily table...';
-        first_time:=clock_timestamp();
-        create unlogged table silver.orders_daily(order_id VARCHAR(255),customer_id VARCHAR(255),order_date date,status VARCHAR(255),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
-        
-        insert into silver.orders_daily(order_id,customer_id,order_date,status,created_at_bronze)
-        select distinct on (order_id,customer_id)
-        lower(trim(order_id))::varchar(255),
-        lower(trim(customer_id))::varchar(255),
-        case when nullif(trim(order_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
-        then to_date(trim(order_date),'YYYY-MM-DD') end,
-        lower(trim(status))::varchar(255),
-        created_at_bronze
-        from bronze.orders_raw_daily order BY
-        order_id,customer_id,created_at_bronze desc;
+                RAISE NOTICE 'Data loading started for [orders_daily] table,,,--->';
+                
+                create unlogged table silver.orders_daily(order_id VARCHAR(255),customer_id VARCHAR(255),order_date date,status VARCHAR(255),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
+                
+                insert into silver.orders_daily(order_id,customer_id,order_date,status,created_at_bronze)
+                select distinct on (order_id,customer_id)
+                lower(trim(order_id))::varchar(255),
+                lower(trim(customer_id))::varchar(255),
+                case when nullif(trim(order_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
+                then to_date(trim(order_date),'YYYY-MM-DD') end,
+                lower(trim(status))::varchar(255),
+                created_at_bronze
+                from bronze.orders_raw_daily order BY
+                order_id,customer_id,created_at_bronze desc;
 
-        call silver.silver_orders_validation();
+                call silver.silver_orders_validation();
 
-        raise notice 'Full loaded completed in % min, Creating PK for [ORDERS], both table(daily+main)', clock_timestamp()-first_time;
-        first_time:=clock_timestamp();
-        if not exists (select 1 from pg_constraint where conname='order_customer_pk') then
-        alter table silver.orders
-        add constraint order_customer_pk primary key (order_id,customer_id);
-        end if;
+                RAISE NOTICE 'Data full loaded to [orders_daily] table in % min.', clock_timestamp()-first_time;
 
-        alter table silver.orders_daily
-        add constraint order_customer_pk_daily primary key (order_id,customer_id);
+                RAISE NOTICE 'PK task started for [orders_daily] table,,,';
 
-        RAISE NOTICE 'PK loaded, completed in [ORDERS] % min.', clock_timestamp()-first_time;
+                first_time:=clock_timestamp();
 
-        raise notice 'Now inserting to [ORDERS] main table';
-        first_time:=clock_timestamp();
+                if not exists (select 1 from pg_constraint where conname='order_customer_pk')
+                then /*If PK does not exist, creating one*/
+                        alter table silver.orders
+                        add constraint order_customer_pk primary key (order_id,customer_id);
+                end if;
 
-        insert into silver.orders
-        select * from silver.orders_daily
-        on conflict(order_id,customer_id)
-        do update SET
-        status = EXCLUDED.status,
-        order_date = EXCLUDED.order_date,
-        created_at_silver = current_timestamp
-        where (silver.orders.status,
-        silver.orders.order_date)is distinct from(EXCLUDED.status,
-        EXCLUDED.order_date);
+                alter table silver.orders_daily            /*Creating PK for orders_daily table*/
+                add constraint order_customer_pk_daily primary key (order_id,customer_id);
 
-        raise notice 'Loaded completed in % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'PK loaded, completed in [orders_daily] % min.', clock_timestamp()-first_time;
 
+                RAISE NOTICE 'Now inserting to [orders_daily] main table';
 
+                first_time:=clock_timestamp();
 
-        drop table bronze.orders_raw_daily;
+                insert into silver.orders
+                select * from silver.orders_daily
+                on conflict(order_id,customer_id)
+                do update SET
+                status = EXCLUDED.status,
+                order_date = EXCLUDED.order_date,
+                created_at_silver = current_timestamp
+                where (silver.orders.status,
+                silver.orders.order_date)is distinct from(EXCLUDED.status,
+                EXCLUDED.order_date);
+
+                RAISE NOTICE 'Data full loaded to [orders] main table in % min.<---', clock_timestamp()-first_time;
+
+                drop table bronze.orders_raw_daily;
 
         else 
-        raise notice 'No data to load, table [orders_raw_daily] is empty';
+                RAISE NOTICE 'New data already inserted to [orders] table, no data to load...';
         end if;
 
-        update operational_log.orders_log
+        update operational_log.orders_log /*Updating log table*/
         set executing_time=clock_timestamp()-orders_start_time
         where ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
@@ -458,62 +463,71 @@ BEGIN
 
         /*Full load products*/
 
+        first_time := clock_timestamp();
+
         products_start_time:= clock_timestamp();
 
         if exists (select 1 from information_schema.tables where table_name = 'products_raw_daily' and table_schema = 'bronze')
-        then
+        then /*If products table exists, loading data to products table*/
 
-        raise notice 'Data full loading to [Products] daily table...';
-        first_time:=clock_timestamp();
-        create unlogged table silver.products_daily(product_id VARCHAR(255),name VARCHAR(255),category VARCHAR(255),price NUMERIC(10,2),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
-        insert into silver.products_daily(product_id,name,category,price,created_at_bronze)
-        select distinct on(product_id)
-        lower(trim(product_id))::varchar(255),
-        lower(trim(name))::varchar(255),
-        lower(trim(category))::varchar(255),
-        trim(price::text)::numeric(10,2),
-        created_at_bronze
-        from bronze.products_raw_daily order by 
-        product_id, created_at_bronze desc;
+                RAISE NOTICE 'Data loading started for [products_daily] table,,,--->';
 
-        call silver.silver_products_validation();
+            
+                create unlogged table silver.products_daily(product_id VARCHAR(255),name VARCHAR(255),category VARCHAR(255),price NUMERIC(10,2),created_at_bronze timestamp,created_at_silver timestamp default current_timestamp);
+                insert into silver.products_daily(product_id,name,category,price,created_at_bronze)
+                select distinct on(product_id)
+                lower(trim(product_id))::varchar(255),
+                lower(trim(name))::varchar(255),
+                lower(trim(category))::varchar(255),
+                trim(price::text)::numeric(10,2),
+                created_at_bronze
+                from bronze.products_raw_daily order by 
+                product_id, created_at_bronze desc;
+
+                call silver.silver_products_validation();
 
 
-        raise notice 'Full loaded completed in % min, Creating PK for [Products], daily table', clock_timestamp()-first_time;
-        first_time:=clock_timestamp();
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint where conname='product_pk') THEN
-        ALTER TABLE silver.products ADD CONSTRAINT product_pk PRIMARY KEY (product_id);
-        END IF;
-        alter table silver.products_daily
-        add constraint product_pk_daily primary key (product_id);
-        RAISE NOTICE 'PK loaded completed in [Products] % min.', clock_timestamp()-first_time;
+                RAISE NOTICE 'Data full loaded to [products_daily] table in % min.', clock_timestamp()-first_time;
 
-        raise notice 'Now inserting to [Products] main table';
-        first_time:=clock_timestamp();
+                first_time:=clock_timestamp();
 
-        insert into silver.products
-        select * from silver.products_daily
-        on conflict(product_id)
-        do update SET
-        name = EXCLUDED.name,
-        category = EXCLUDED.category,
-        price = EXCLUDED.price,
-        created_at_silver = current_timestamp
-        where (silver.products.name,
-        silver.products.category,
-        silver.products.price)is distinct from(EXCLUDED.name,
-        EXCLUDED.category,
-        EXCLUDED.price);
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint where conname='product_pk') 
+                THEN /*If PK does not exist, creating one*/
+                        ALTER TABLE silver.products ADD CONSTRAINT product_pk PRIMARY KEY (product_id);
+                END IF;
 
-        RAISE NOTICE 'Full data loaded completed in [Products] % min.', clock_timestamp()-first_time;
+                alter table silver.products_daily    /*Creating PK for products_daily table*/
+                add constraint product_pk_daily primary key (product_id);
 
-        drop table bronze.products_raw_daily;
+                RAISE NOTICE 'PK loaded, completed in [Products_daily] % min.', clock_timestamp()-first_time;
+
+                RAISE NOTICE 'Now inserting to [Products_daily] main table';
+
+                first_time:=clock_timestamp();
+
+                insert into silver.products
+                select * from silver.products_daily
+                on conflict(product_id)
+                do update SET
+                name = EXCLUDED.name,
+                category = EXCLUDED.category,
+                price = EXCLUDED.price,
+                created_at_silver = current_timestamp
+                where (silver.products.name,
+                silver.products.category,
+                silver.products.price)is distinct from(EXCLUDED.name,
+                EXCLUDED.category,
+                EXCLUDED.price);
+
+                RAISE NOTICE 'Data full loaded to [products] main table in % min.<---', clock_timestamp()-first_time;
+
+                drop table bronze.products_raw_daily;
 
         else 
-        raise notice 'No data to load, table [products_raw_daily] is empty';
+                RAISE NOTICE 'No data to load, table [products] is empty';
         end if;
 
-        update operational_log.products_log
+        update operational_log.products_log /*Updating log table*/
         set executing_time=clock_timestamp()-products_start_time
         where ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
