@@ -122,7 +122,14 @@ $$;
 call operational_log.ingestion_id_create();
 
 
+select * from ingestion_id
+
+
 select * from customers_log;
+select * from order_items_log;
+select * from orders_log;
+select * from payments_log;
+select * from products_log;
 
 
 select raw_row->>'name',raw_row->>'customer_id',raw_row->>'signup_date'  from operational_log.quarantine;
