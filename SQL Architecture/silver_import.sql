@@ -164,7 +164,9 @@ BEGIN
                 from bronze.payments_raw_daily order BY
                 payment_id,order_id,created_at_bronze desc;
 
-                /*call silver.silver_payments_validation();*/ 
+
+                call silver.payments_validation_optimized();
+                /*call silver.silver_payments_validation();*/
                 /* Data Validation procedure call-> */
 
                 RAISE NOTICE 'Data full loaded to [payments_daily] table in % min.', clock_timestamp()-first_time;
@@ -185,8 +187,8 @@ BEGIN
                 RAISE NOTICE 'Now inserting to [Payments] main table';
                 first_time:= clock_timestamp();
 
-
-                insert into silver.payments  /*From payments_daily table, inserting already cleaned data to payment mian table*/
+                /*
+                insert into silver.payments  
                 select  * from silver.payments_daily
                 on conflict(payment_id,order_id)
                 do update set
@@ -203,7 +205,36 @@ BEGIN
                 ) is distinct from (EXCLUDED.payment_date,
                 EXCLUDED.method,
                 EXCLUDED.order_date,
-                EXCLUDED.total);
+                EXCLUDED.total);  */
+                
+
+
+                
+                /*Insert into Payments main table, optimized option:*/
+                /*Update first if new data came for the same payment_id and order_id*/
+                
+                update silver.payments p
+                SET
+                payment_date = pd.payment_date,
+                method = pd.method,
+                order_date = pd.order_date,
+                total = pd.total,
+                created_at_bronze = pd.created_at_bronze,
+                created_at_silver = current_timestamp
+                FROM silver.payments_daily pd
+                WHERE p.payment_id = pd.payment_id AND p.order_id = pd.order_id
+                and (p.payment_date,p.method,p.order_date,p.total) is distinct from 
+                (pd.payment_date,pd.method,pd.order_date,pd.total); 
+
+                /*Now insert remaining rows those are new:*/
+                
+                insert into silver.payments(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze,created_at_silver)
+                select a.payment_id,a.payment_date,a.method,a.order_id,a.order_date,a.total,a.created_at_bronze,current_timestamp
+                from silver.payments_daily a
+                where not exists (select 1 from silver.payments pd
+                where pd.payment_id=a.payment_id and pd.order_id=a.order_id);
+                
+
 
                 RAISE NOTICE 'Data full loaded to [payments] main table in % min.<---', clock_timestamp()-first_time;
                 

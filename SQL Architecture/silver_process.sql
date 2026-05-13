@@ -547,8 +547,14 @@ $$;
 [PRODUCTS] ends
 */
 
+================================
+================================ OPTIMIZATION
+================================
 
-create or replace procedure silver.customer_optimized()
+/* OPTIMIZED PART */
+
+/*Customer optimized validation. */
+create or replace procedure silver.customer_validation_optimized()
 language PLPGSQL
 as $$
 DECLARE
@@ -560,80 +566,217 @@ silver_customers_duplicate_count int;
 silver_customers_future_past_count int;
 first_time timestamp:= clock_timestamp();
 BEGIN
-/*Optimized try*/
-/*Customers*/
-/*Quarantine(PK+required_fields+future_past date)+Count(PK+required_fields+future_past date)*/
-with deleted as(
-delete from silver.customers_daily
-where nullif(customer_id,'') is null or nullif(name,'') is null or nullif(signup_date::text,'') is null OR
-signup_date>now()+interval '1 day' or signup_date<'2015-01-01'
-returning *,
-case
-when nullif(customer_id,'') is null then 'missing_pk'
-when nullif(name,'') is null then 'missing_required_fields'
-when nullif(signup_date::text,'') is null then 'missing_required_fields'
-when signup_date>now()+interval '1 day' or signup_date<'2015-01-01' then 'future_or_past_date'
-end as reject_reason
-),inserted as(
-insert into operational_log.quarantine(ingestion_id,table_name, reject_reason, raw_row)
-select (select ingestion_id from operational_log.ingestion_id),
-'customers',
-reject_reason,
-row_to_json(d)::JSONB
-from deleted d
-returning reject_reason
-)select
-count(*) filter (where reject_reason ='missing_pk'), 
-count(*) filter (where reject_reason ='missing_required_fields'), 
-count(*) filter (where reject_reason ='future_or_past_date')
-into
-silver_customers_null_pk_count,
-silver_customers_null_count,
-silver_customers_future_past_count
-from inserted;
 
-/*duplicate count + delete*/
-WITH duplicated AS (
-    DELETE FROM silver.customers_daily
-    WHERE ctid IN (
-        SELECT ctid FROM (
-            SELECT ctid,
-                   row_number() OVER (
-                       PARTITION BY customer_id, name, signup_date
-                       ORDER BY created_at_bronze DESC
-                   ) AS rn
-            FROM silver.customers_daily
-        ) ranked
-        WHERE rn > 1
-    )
-    RETURNING *
-)
-SELECT count(*) INTO silver_customers_duplicate_count FROM duplicated;
+            /*Customers*/
+            /*Quarantine(PK+required_fields+future_past date)+Count(PK+required_fields+future_past date)*/
+            with deleted as(
+            delete from silver.customers_daily
+            where nullif(customer_id,'') is null or nullif(name,'') is null or nullif(signup_date::text,'') is null OR
+            signup_date>now()+interval '1 day' or signup_date<'2015-01-01'
+            returning *,
+            case
+            when nullif(customer_id,'') is null then 'missing_pk'
+            when nullif(name,'') is null then 'missing_required_fields'
+            when nullif(signup_date::text,'') is null then 'missing_required_fields'
+            when signup_date>now()+interval '1 day' or signup_date<'2015-01-01' then 'future_or_past_date'
+            end as reject_reason
+            ),inserted as(
+            insert into operational_log.quarantine(ingestion_id,table_name, reject_reason, raw_row)
+            select (select ingestion_id from operational_log.ingestion_id),
+            'customers',
+            reject_reason,
+            row_to_json(d)::JSONB
+            from deleted d
+            returning reject_reason
+            )select
+            count(*) filter (where reject_reason ='missing_pk'), 
+            count(*) filter (where reject_reason ='missing_required_fields'), 
+            count(*) filter (where reject_reason ='future_or_past_date')
+            into
+            silver_customers_null_pk_count,
+            silver_customers_null_count,
+            silver_customers_future_past_count
+            from inserted;
 
-/*Counting the number of rows*/
-select count(*) into bronze_customers_row_count from bronze.customers;
-select count(*) into silver_customers_row_count from silver.customers_daily;
+            /*duplicate count*/
+            select count(*) into silver_customers_duplicate_count from (
+            select customer_id,row_number() over(partition by customer_id,name,signup_date order by created_at_bronze) as rnk from bronze.customers_raw_daily
+            ) as b where rnk>1;
 
-raise notice '[customers]null pk count: %',silver_customers_null_pk_count;
-raise notice '[customers]other null count: %',silver_customers_null_count;
-raise notice '[customers]future or past date count: %',silver_customers_future_past_count;
-raise notice '[customers]duplicate count: %',silver_customers_duplicate_count;
-raise notice '[customers]bronze row count: %',bronze_customers_row_count;
-raise notice '[customers]silver row count: %',silver_customers_row_count;
 
-insert into operational_log.customers_log(
-ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,future_or_past_date_count,duplicate_count,quarantine_count,executing_time)
-values(
-    (select ingestion_id from operational_log.ingestion_id),
-    'customers',
-    bronze_customers_row_count,
-    silver_customers_row_count,
-    silver_customers_null_pk_count,
-    silver_customers_null_count,
-    silver_customers_future_past_count,
-    silver_customers_duplicate_count,
-    silver_customers_null_pk_count + silver_customers_null_count + silver_customers_future_past_count,
-    null
-);
+
+            /*Counting the number of rows*/
+            select count(*) into bronze_customers_row_count from bronze.customers_raw_daily;
+            select count(*) into silver_customers_row_count from silver.customers_daily;
+
+            raise notice '[customers]null pk count: %',silver_customers_null_pk_count;
+            raise notice '[customers]other null count: %',silver_customers_null_count;
+            raise notice '[customers]future or past date count: %',silver_customers_future_past_count;
+            raise notice '[customers]duplicate count: %',silver_customers_duplicate_count;
+            raise notice '[customers]bronze row count: %',bronze_customers_row_count;
+            raise notice '[customers]silver row count: %',silver_customers_row_count;
+
+            insert into operational_log.customers_log(
+            ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,executing_time)
+            values(
+            (select ingestion_id from operational_log.ingestion_id),
+            'customers',
+            bronze_customers_row_count,
+            silver_customers_row_count,
+            silver_customers_null_pk_count,
+            silver_customers_null_count,
+            silver_customers_future_past_count,
+            silver_customers_duplicate_count,
+            silver_customers_null_pk_count + silver_customers_null_count + silver_customers_future_past_count,
+            null
+            );
+            end;
+            $$;
+
+
+
+
+
+
+/*Payments optimized validation. */
+create or replace procedure silver.payments_validation_optimized()
+language PLPGSQL
+as $$
+DECLARE
+bronze_payments_row_count int;
+silver_payments_row_count int;
+silver_payments_null_pk_count int;
+silver_payments_null_count int;
+silver_payments_duplicate_count int;
+silver_payments_future_past_count int;
+silver_payments_negative_count int;
+first_time timestamp:= clock_timestamp();
+BEGIN
+
+            /*Payments*/
+            /*Quarantine(PK+required_fields+future_past date)+Count(PK+required_fields+future_past date)*/
+            with deleted as(
+            delete from silver.payments_daily
+            where nullif(payment_id,'') is null or nullif(order_id,'') is null or nullif(payment_date::text,'') is null or nullif(method,'') is null OR
+            payment_date>now()+interval '1 day' or payment_date<'2015-01-01' or nullif(order_date::text,'') is null or order_date>now()+interval '1 day' or order_date<'2015-01-01' or nullif(total::text,'') is null or total<0
+            returning *,
+            case
+            when nullif(payment_id,'') is null or nullif(order_id,'') is null then 'missing_pk'
+            when nullif(payment_date::text,'') is null or nullif(method,'') is null or nullif(order_date::text,'') is null or nullif(total::text,'') is null then 'missing_required_fields'
+            when payment_date>now()+interval '1 day' or payment_date<'2015-01-01' or order_date>now()+interval '1 day' or order_date<'2015-01-01' or payment_date>order_date then 'future_or_past_date'
+            when total<0 then 'negative_total'
+            end as reject_reason
+            ),
+            inserted as(
+            insert into operational_log.quarantine(ingestion_id,table_name, reject_reason, raw_row)
+            select (select ingestion_id from operational_log.ingestion_id),
+            'payments',
+            reject_reason,
+            row_to_json(d)::JSONB
+            from deleted d
+            returning reject_reason
+            )select
+            count(*) filter (where reject_reason ='missing_pk'), 
+            count(*) filter (where reject_reason ='missing_required_fields'), 
+            count(*) filter (where reject_reason ='future_or_past_date'),
+            count(*) filter (where reject_reason ='negative_total')
+            into
+            silver_payments_null_pk_count,
+            silver_payments_null_count,
+            silver_payments_future_past_count,
+            silver_payments_negative_count
+            from inserted;
+
+
+
+
+            /*duplicate count */
+            select count(*) into silver_payments_duplicate_count from (
+            select payment_id,
+            row_number() over(partition by payment_id,payment_date,method,order_id,order_date,total order by created_at_bronze desc) as rn
+            from bronze.payments_raw_daily
+            ) ranked
+            where rn>1;
+            
+
+
+            /*row count*/
+            select count(*) into bronze_payments_row_count from bronze.payments_raw_daily;
+            select count(*) into silver_payments_row_count from silver.payments_daily;
+
+
+            raise notice '[payments]bronze row count: %',bronze_payments_row_count;
+            raise notice '[payments]silver row count: %',silver_payments_row_count;
+            raise notice '[payments]null pk count: %',silver_payments_null_pk_count;
+            raise notice '[payments]null count: %',silver_payments_null_count;
+            raise notice '[payments]duplicate count: %',silver_payments_duplicate_count;
+            raise notice '[payments]future or past date count: %',silver_payments_future_past_count;
+            raise notice '[payments]negative count: %',silver_payments_negative_count;
+            raise notice '[payments]executing time: %',clock_timestamp()-first_time;
+
+            /*insert into operational_log*/
+            insert into operational_log.payments_log(
+            ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,negative_count,executing_time,log_created_at
+            )values(
+            (select ingestion_id from operational_log.ingestion_id),
+            'payments',
+            bronze_payments_row_count,
+            silver_payments_row_count,
+            silver_payments_null_pk_count,
+            silver_payments_null_count,
+            silver_payments_duplicate_count,
+            silver_payments_future_past_count,  
+            silver_payments_null_pk_count + silver_payments_null_count + silver_payments_future_past_count+silver_payments_negative_count,
+            silver_payments_negative_count,
+            clock_timestamp() - first_time,
+            null
+            );
+
+            RAISE NOTICE 'Full validation for [payments] completed in %', clock_timestamp() - first_time;
+
+
 end;
 $$;
+
+
+/*Order_items optimized validation. */
+create or replace procedure silver.order_items_validation_optimized()
+language PLPGSQL
+as $$
+begin
+
+            /*Qurantine */
+            /*null pk count + null count + duplicate count + future or past date count*/
+            with deleted as(
+            delete from silver.order_items_daily
+            where nullif(order_id,'') is null or nullif(product_id,'') is null or nullif(quantity::text,'') is null or quantity<0 or nullif(unit_price::text,'') is null or unit_price<0 or nullif(total::text,'') is null or total<0
+            returning *,
+            case
+            when nullif(order_id,'') is null or nullif(product_id,'') is null  then 'missing_pk'
+            when nullif(unit_price::text,'') is null  or nullif(total::text,'') is null or nullif(quantity::text,'') is null then 'missing_required_fields'
+            when unit_price<0 or total<0 or quantity<0 then 'negative_values'
+            end as reject_reason
+            ),
+            inserted as(
+            insert into operational_log.quarantine(ingestion_id,table_name, reject_reason, raw_row)
+            select (select ingestion_id from operational_log.ingestion_id),
+            'order_items',
+            reject_reason,
+            row_to_json(d)::JSONB
+            from deleted d
+            returning reject_reason
+            )select
+            count(*) filter (where reject_reason ='missing_pk'), 
+            count(*) filter (where reject_reason ='missing_required_fields'),
+            count(*) filter (where reject_reason ='negative_quantity')
+            from inserted;
+
+
+            /*
+
+
+
+
+end;
+$$;
+
