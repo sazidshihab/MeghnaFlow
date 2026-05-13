@@ -26,15 +26,17 @@ BEGIN
         select count(*) into bronze_customers_row_count from bronze.customers_raw_daily;
 
 
-        /*([customers_daily] Duplicate row chk */
-        delete from silver.customers_daily where ctid in( select ctid from(
-        select ctid, row_number()over(partition by customer_id,name,signup_date order by created_at_bronze desc) as cnt from bronze.customers_raw_daily
-        ) as a where  cnt>1);
-        
 
+        /*([customers_daily] Duplicate row chk */
         select count(*) into silver_customers_duplicate_count from(
         select customer_id,name,signup_date,count(*) as cnt from silver.customers_daily group by customer_id,name,signup_date having count(*)>1
         ) as a;
+
+       
+        delete from silver.customers_daily where ctid in( select ctid from(
+        select ctid, row_number()over(partition by customer_id,name,signup_date order by created_at_bronze desc) as cnt from silver.customers_daily
+        ) as a where  cnt>1);
+        
 
         
         /*[customers_daily]:Checking for PK null*/
@@ -544,3 +546,94 @@ $$;
 /*
 [PRODUCTS] ends
 */
+
+
+create or replace procedure silver.customer_optimized()
+language PLPGSQL
+as $$
+DECLARE
+bronze_customers_row_count int;
+silver_customers_row_count int;
+silver_customers_null_pk_count int;
+silver_customers_null_count int;
+silver_customers_duplicate_count int;
+silver_customers_future_past_count int;
+first_time timestamp:= clock_timestamp();
+BEGIN
+/*Optimized try*/
+/*Customers*/
+/*Quarantine(PK+required_fields+future_past date)+Count(PK+required_fields+future_past date)*/
+with deleted as(
+delete from silver.customers_daily
+where nullif(customer_id,'') is null or nullif(name,'') is null or nullif(signup_date::text,'') is null OR
+signup_date>now()+interval '1 day' or signup_date<'2015-01-01'
+returning *,
+case
+when nullif(customer_id,'') is null then 'missing_pk'
+when nullif(name,'') is null then 'missing_required_fields'
+when nullif(signup_date::text,'') is null then 'missing_required_fields'
+when signup_date>now()+interval '1 day' or signup_date<'2015-01-01' then 'future_or_past_date'
+end as reject_reason
+),inserted as(
+insert into operational_log.quarantine(ingestion_id,table_name, reject_reason, raw_row)
+select (select ingestion_id from operational_log.ingestion_id),
+'customers',
+reject_reason,
+row_to_json(d)::JSONB
+from deleted d
+returning reject_reason
+)select
+count(*) filter (where reject_reason ='missing_pk'), 
+count(*) filter (where reject_reason ='missing_required_fields'), 
+count(*) filter (where reject_reason ='future_or_past_date')
+into
+silver_customers_null_pk_count,
+silver_customers_null_count,
+silver_customers_future_past_count
+from inserted;
+
+/*duplicate count + delete*/
+WITH duplicated AS (
+    DELETE FROM silver.customers_daily
+    WHERE ctid IN (
+        SELECT ctid FROM (
+            SELECT ctid,
+                   row_number() OVER (
+                       PARTITION BY customer_id, name, signup_date
+                       ORDER BY created_at_bronze DESC
+                   ) AS rn
+            FROM silver.customers_daily
+        ) ranked
+        WHERE rn > 1
+    )
+    RETURNING *
+)
+SELECT count(*) INTO silver_customers_duplicate_count FROM duplicated;
+
+/*Counting the number of rows*/
+select count(*) into bronze_customers_row_count from bronze.customers;
+select count(*) into silver_customers_row_count from silver.customers_daily;
+
+raise notice '[customers]null pk count: %',silver_customers_null_pk_count;
+raise notice '[customers]other null count: %',silver_customers_null_count;
+raise notice '[customers]future or past date count: %',silver_customers_future_past_count;
+raise notice '[customers]duplicate count: %',silver_customers_duplicate_count;
+raise notice '[customers]bronze row count: %',bronze_customers_row_count;
+raise notice '[customers]silver row count: %',silver_customers_row_count;
+
+insert into operational_log.customers_log(
+ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,future_or_past_date_count,duplicate_count,quarantine_count,executing_time)
+values(
+    (select ingestion_id from operational_log.ingestion_id),
+    'customers',
+    bronze_customers_row_count,
+    silver_customers_row_count,
+    silver_customers_null_pk_count,
+    silver_customers_null_count,
+    silver_customers_future_past_count,
+    silver_customers_duplicate_count,
+    silver_customers_null_pk_count + silver_customers_null_count + silver_customers_future_past_count,
+    null
+);
+end;
+$$;

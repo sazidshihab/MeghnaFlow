@@ -164,7 +164,8 @@ BEGIN
                 from bronze.payments_raw_daily order BY
                 payment_id,order_id,created_at_bronze desc;
 
-                call silver.silver_payments_validation(); /* Data Validation procedure call-> */
+                /*call silver.silver_payments_validation();*/ 
+                /* Data Validation procedure call-> */
 
                 RAISE NOTICE 'Data full loaded to [payments_daily] table in % min.', clock_timestamp()-first_time;
 
@@ -244,7 +245,8 @@ BEGIN
                 from bronze.order_items_raw_daily
                 order by order_id,product_id, created_at_bronze desc;
 
-                call silver.silver_order_items_validation(); /* Data Validation procedure call-> */
+                /*call silver.silver_order_items_validation();*/
+                /* Data Validation procedure call-> */
 
                 RAISE NOTICE 'Data full loaded to [order_items_daily] table in % min.', clock_timestamp()-first_time;
 
@@ -321,7 +323,9 @@ BEGIN
                 from bronze.customers_raw_daily
                 order by customer_id, created_at_bronze desc;
 
-                call silver.silver_customer_validation(); /* Data Validation procedure call-> */
+                call silver.silver_customer_validation(); 
+               /* call silver.customer_optimized();*/
+                /* Data Validation procedure call-> */
 
                 RAISE NOTICE 'Data full loaded to [customers_daily] table in % min.', clock_timestamp()-first_time;
 
@@ -412,7 +416,7 @@ BEGIN
                 from bronze.orders_raw_daily order BY
                 order_id,customer_id,created_at_bronze desc;
 
-                call silver.silver_orders_validation();
+                /*call silver.silver_orders_validation();*/
 
                 RAISE NOTICE 'Data full loaded to [orders_daily] table in % min.', clock_timestamp()-first_time;
 
@@ -484,7 +488,7 @@ BEGIN
                 from bronze.products_raw_daily order by 
                 product_id, created_at_bronze desc;
 
-                call silver.silver_products_validation();
+                /*call silver.silver_products_validation();*/
 
 
                 RAISE NOTICE 'Data full loaded to [products_daily] table in % min.', clock_timestamp()-first_time;
