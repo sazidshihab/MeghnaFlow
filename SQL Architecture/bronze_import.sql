@@ -134,7 +134,7 @@ Begin
                 create UNLOGGED table bronze.customers_raw_daily(customer_id text, name text, signup_date text, created_at_bronze timestamp default current_timestamp);
         
                 COPY bronze.customers_raw_daily(customer_id, name, signup_date)
-                FROM program 'head -n 100000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_2026-05-03.csv"'
+                FROM  '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_2026-05-03.csv'
                 WITH (FORMAT csv, HEADER true);
 
                 RAISE NOTICE 'Step 2: Customer data ingested successfully to bronze daily table and creating index for it....';
@@ -173,7 +173,7 @@ Begin
                 create UNLOGGED table bronze.products_raw_daily(product_id text, name text, category text, price text, created_at_bronze timestamp default current_timestamp);
 
                 copy bronze.products_raw_daily(product_id, name, category, price)
-                from program 'head -n 10000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_2026-05-04.csv"'
+                from   '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_2026-05-04.csv'
                 with (format csv, header true);
 
                 RAISE NOTICE 'Step 2: Product data ingested successfully to brone daily table and creating index for it....';
@@ -210,7 +210,7 @@ Begin
                 create UNLOGGED table bronze.orders_raw_daily(order_id text, customer_id text, order_date text, status text, created_at_bronze timestamp default current_timestamp);
                 
                 copy bronze.orders_raw_daily(order_id, customer_id, order_date, status)
-                from  program 'head -n 1000000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_2026-05-04.csv"'
+                from   '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_2026-05-04.csv'
                 with(format csv, header true);
 
                 RAISE NOTICE 'Step 2: Order data ingested successfully to bronze daily table and creating index for it....';
@@ -246,7 +246,7 @@ Begin
                 create UNLOGGED table bronze.order_items_raw_daily(order_id text, product_id text, quantity text, unit_price text, total text, created_at_bronze timestamp default current_timestamp);
         
                 copy bronze.order_items_raw_daily(order_id, product_id, quantity, unit_price, total)
-                from  program 'head -n 100000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_2026-05-04.csv"'
+                from  '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_2026-05-04.csv'
                 with(format csv, header true);
 
                 RAISE NOTICE 'Step 2: Order Item data ingested successfully to bronze daily table and creating index for it....';
@@ -283,7 +283,7 @@ Begin
                 create UNLOGGED table bronze.payments_raw_daily(payment_id text,method text, order_id text,  order_date text, total text, payment_date text,   created_at_bronze timestamp default current_timestamp);
                 
                 copy bronze.payments_raw_daily(payment_id,  method, order_id,  order_date, total, payment_date)
-                from program'"head -n 100000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_2026-05-04.csv"'
+                from  '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_2026-05-04.csv'
                 with(format csv, header true);
 
                 RAISE NOTICE 'Step 2: Payment data ingested successfully to bronze daily table and creating index for it......';

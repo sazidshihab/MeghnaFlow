@@ -7,6 +7,7 @@ BEGIN
     drop table if exists operational_log.quarantine;
     create table operational_log.quarantine(
         id SERIAL  primary key,
+        ingestion_id int,
         table_name varchar(255),
         reject_reason varchar(255),
         flagged_at timestamp default current_timestamp,
@@ -37,6 +38,8 @@ BEGIN
         future_past_count int,
         quarantine_count int,
         executing_time INTERVAL,
+        silver_main_rows_updated_count int,
+        silver_main_rows_inserted_count int,
         log_created_at timestamp default current_timestamp
         ) ;
 
@@ -49,9 +52,11 @@ BEGIN
         null_pk_count int,
         other_null_count int,
         duplicate_count int,
-        future_past_count int,
         quarantine_count int,
+        negative_count int,
         executing_time INTERVAL,
+        silver_main_rows_updated_count int,
+        silver_main_rows_inserted_count int,
         log_created_at timestamp default current_timestamp
         ) ;
 
@@ -67,6 +72,8 @@ BEGIN
         future_past_count int,
         quarantine_count int,
         executing_time INTERVAL,
+        silver_main_rows_updated_count int,
+        silver_main_rows_inserted_count int,
         log_created_at timestamp default current_timestamp
         ) ;
 
@@ -81,7 +88,10 @@ BEGIN
         duplicate_count int,
         future_past_count int,
         quarantine_count int,
+        negative_count int,
         executing_time INTERVAL,
+        silver_main_rows_updated_count int,
+        silver_main_rows_inserted_count int,
         log_created_at timestamp default current_timestamp
         ) ;
 
@@ -94,9 +104,11 @@ BEGIN
         null_pk_count int,
         other_null_count int,
         duplicate_count int,
-        future_past_count int,
+        negative_count int,
         quarantine_count int,
         executing_time INTERVAL,
+        silver_main_rows_updated_count int,
+        silver_main_rows_inserted_count int,
         log_created_at timestamp default current_timestamp
         ) ;
 
@@ -131,6 +143,12 @@ select * from orders_log;
 select * from payments_log;
 select * from products_log;
 
-select * from operational_log.quarantine;
+select * from operational_log.quarantine
+where table_name='customers' and ingestion_id=21;
 
 select raw_row->>'name',raw_row->>'customer_id',raw_row->>'signup_date'  from operational_log.quarantine;
+
+
+select count(*) from silver.customers;
+select count(*) from silver.customers_daily;
+select count(*) from bronze.customers_raw;

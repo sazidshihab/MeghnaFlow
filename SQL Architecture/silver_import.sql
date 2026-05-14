@@ -124,6 +124,8 @@ order_items_start_time timestamp ;
 orders_start_time timestamp ;
 payments_start_time timestamp ;
 products_start_time timestamp ;
+local_rows_updated_count int;
+local_rows_inserted_count int;
 
 BEGIN
 
@@ -226,6 +228,13 @@ BEGIN
                 and (p.payment_date,p.method,p.order_date,p.total) is distinct from 
                 (pd.payment_date,pd.method,pd.order_date,pd.total); 
 
+
+                get DIAGNOSTICS local_rows_updated_count = ROW_COUNT;  /*Updating log table for update count*/
+                update  operational_log.payments_log
+                set silver_main_rows_updated_count =  local_rows_updated_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
+
                 /*Now insert remaining rows those are new:*/
                 
                 insert into silver.payments(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze,created_at_silver)
@@ -233,6 +242,11 @@ BEGIN
                 from silver.payments_daily a
                 where not exists (select 1 from silver.payments pd
                 where pd.payment_id=a.payment_id and pd.order_id=a.order_id);
+
+                get DIAGNOSTICS local_rows_inserted_count = ROW_COUNT;  /*Updating log table for insert count*/
+                update  operational_log.payments_log
+                set silver_main_rows_inserted_count =  local_rows_inserted_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
                 
 
 
@@ -276,6 +290,8 @@ BEGIN
                 from bronze.order_items_raw_daily
                 order by order_id,product_id, created_at_bronze desc;
 
+
+                call silver.order_items_validation_optimized();
                 /*call silver.silver_order_items_validation();*/
                 /* Data Validation procedure call-> */
 
@@ -300,7 +316,8 @@ BEGIN
 
                 first_time:= clock_timestamp();
 
-                insert into silver.order_items  /*From order_items_daily table, inserting already cleaned data to order_items main table*/
+                /*
+                insert into silver.order_items  
                 select * from silver.order_items_daily
                 on conflict(order_id,product_id)
                 do update SET
@@ -316,6 +333,40 @@ BEGIN
                 (EXCLUDED.quantity,
                 EXCLUDED.unit_price,
                 EXCLUDED.total);
+                */
+
+                /*Optimized Insert:*/
+                update silver.order_items a
+                SET
+                quantity = b.quantity,
+                unit_price = b.unit_price,
+                total = b.total,
+                created_at_bronze = b.created_at_bronze,
+                created_at_silver = current_timestamp
+                from silver.order_items_daily b
+                where a.order_id = b.order_id and a.product_id = b.product_id
+                and (a.quantity,a.unit_price,a.total) 
+                is distinct from
+                (b.quantity,b.unit_price,b.total);
+
+                get diagnostics local_rows_updated_count = row_count; /*Getting number of rows updated*/
+                update operational_log.order_items_log
+                set silver_main_rows_updated_count = local_rows_updated_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
+
+                /*Inserting new rows:*/
+                insert into silver.order_items(order_id,product_id,quantity,unit_price,total,created_at_bronze,created_at_silver)
+                select order_id,product_id,quantity,unit_price,total,created_at_bronze,current_timestamp
+                from silver.order_items_daily a
+                where not exists (select 1 from silver.order_items o
+                where o.order_id=a.order_id and o.product_id=a.product_id);
+
+                get diagnostics local_rows_inserted_count = row_count; /*Getting number of rows inserted*/
+                update operational_log.order_items_log
+                set silver_main_rows_inserted_count = local_rows_inserted_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
 
                 RAISE NOTICE 'Data full loaded to [order_items] main table in % min.<---', clock_timestamp()-first_time;
 
@@ -354,8 +405,8 @@ BEGIN
                 from bronze.customers_raw_daily
                 order by customer_id, created_at_bronze desc;
 
-                call silver.silver_customer_validation(); 
-               /* call silver.customer_optimized();*/
+                /*call silver.silver_customer_validation(); */
+                call silver.customer_validation_optimized();
                 /* Data Validation procedure call-> */
 
                 RAISE NOTICE 'Data full loaded to [customers_daily] table in % min.', clock_timestamp()-first_time;
@@ -397,6 +448,15 @@ BEGIN
                 and a.is_valid=true 
                 and (a.name,a.signup_date) is distinct from (b.name,b.signup_date); /* Now, as new version of customer info arrived, this block will automatically update the previous state as false/old state.*/
 
+
+
+                get diagnostics local_rows_updated_count = row_count; /*Getting number of rows updated*/
+                update operational_log.customers_log
+                set silver_main_rows_updated_count = local_rows_updated_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
+
+
                 /*Inserting new version of data*/
                 insert into silver.customers(customer_id, name, signup_date, created_at_bronze, 
                 created_at_silver, valid_from, valid_to, is_valid)
@@ -407,6 +467,12 @@ BEGIN
                 silver.customers.customer_id=silver.customers_daily.customer_id
                 and silver.customers.is_valid=true
                 ); /*Here, we are inserting new rows, if previous version is already updated to false.*/
+
+
+                get diagnostics local_rows_inserted_count = row_count; /*Getting number of rows inserted*/
+                update operational_log.customers_log
+                set silver_main_rows_inserted_count = local_rows_inserted_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
 
 
                 RAISE NOTICE 'Data full loaded to [customers] main table in % min.<---', clock_timestamp()-first_time;
@@ -447,7 +513,10 @@ BEGIN
                 from bronze.orders_raw_daily order BY
                 order_id,customer_id,created_at_bronze desc;
 
+
                 /*call silver.silver_orders_validation();*/
+                call silver.orders_validation_optimized();
+
 
                 RAISE NOTICE 'Data full loaded to [orders_daily] table in % min.', clock_timestamp()-first_time;
 
@@ -470,6 +539,9 @@ BEGIN
 
                 first_time:=clock_timestamp();
 
+                /*Initial Insert, not optimized:*/
+
+                 /*
                 insert into silver.orders
                 select * from silver.orders_daily
                 on conflict(order_id,customer_id)
@@ -479,7 +551,52 @@ BEGIN
                 created_at_silver = current_timestamp
                 where (silver.orders.status,
                 silver.orders.order_date)is distinct from(EXCLUDED.status,
-                EXCLUDED.order_date);
+                EXCLUDED.order_date); */
+                
+
+                /*Optimized Insert:*/
+                
+                update silver.orders a
+                SET
+                status = b.status,
+                order_date = b.order_date,
+                created_at_bronze = b.created_at_bronze,
+                created_at_silver = current_timestamp
+                from silver.orders_daily b
+                where a.order_id = b.order_id and a.customer_id = b.customer_id
+                and (a.status,a.order_date)
+                is distinct from
+                (b.status,b.order_date); 
+
+
+                /*Getting number of rows updated*/
+                
+                get diagnostics local_rows_updated_count = row_count;
+                update operational_log.orders_log
+                set silver_main_rows_updated_count = local_rows_updated_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
+
+
+
+
+                /*Now insert remaining rows those are new:*/
+                
+                insert into silver.orders(order_id,customer_id,order_date,status,created_at_bronze,created_at_silver)
+                select order_id,customer_id,order_date,status,created_at_bronze,current_timestamp
+                from silver.orders_daily a
+                where not exists (select 1 from silver.orders o
+                where o.order_id=a.order_id and o.customer_id=a.customer_id); 
+
+                /*Getting number of rows inserted*/
+                
+                get diagnostics local_rows_inserted_count = row_count; 
+                update operational_log.orders_log
+                set silver_main_rows_inserted_count = local_rows_inserted_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
+
+
 
                 RAISE NOTICE 'Data full loaded to [orders] main table in % min.<---', clock_timestamp()-first_time;
 
@@ -521,6 +638,8 @@ BEGIN
 
                 /*call silver.silver_products_validation();*/
 
+                CALL silver.products_validation_optimized();
+
 
                 RAISE NOTICE 'Data full loaded to [products_daily] table in % min.', clock_timestamp()-first_time;
 
@@ -540,7 +659,8 @@ BEGIN
 
                 first_time:=clock_timestamp();
 
-                insert into silver.products
+                
+                /*insert into silver.products
                 select * from silver.products_daily
                 on conflict(product_id)
                 do update SET
@@ -552,7 +672,42 @@ BEGIN
                 silver.products.category,
                 silver.products.price)is distinct from(EXCLUDED.name,
                 EXCLUDED.category,
-                EXCLUDED.price);
+                EXCLUDED.price);*/
+
+                /*Optimized Insert:*/
+                /*update*/
+                update silver.products a
+                SET
+                name = b.name,
+                category = b.category,
+                price = b.price,
+                created_at_bronze = b.created_at_bronze,
+                created_at_silver = current_timestamp
+                from silver.products_daily b
+                where a.product_id = b.product_id
+                and (a.name,a.category,a.price) 
+                is distinct from 
+                (b.name,b.category,b.price);
+
+                get diagnostics local_rows_updated_count = row_count; /*Getting number of rows updated*/
+                update operational_log.products_log
+                set silver_main_rows_updated_count = local_rows_updated_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
+
+                /*Now insert remaining rows those are new:*/
+                insert into silver.products(product_id,name,category,price,created_at_bronze,created_at_silver)
+                select product_id,name,category,price,created_at_bronze,current_timestamp
+                from silver.products_daily a
+                where not exists (select 1 from silver.products p
+                where p.product_id=a.product_id);        
+
+                get diagnostics local_rows_inserted_count = row_count; /*Getting number of rows inserted*/
+                update operational_log.products_log
+                set silver_main_rows_inserted_count = local_rows_inserted_count
+                where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+
+
 
                 RAISE NOTICE 'Data full loaded to [products] main table in % min.<---', clock_timestamp()-first_time;
 

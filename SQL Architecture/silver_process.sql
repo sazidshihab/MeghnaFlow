@@ -617,7 +617,7 @@ BEGIN
             raise notice '[customers]silver row count: %',silver_customers_row_count;
 
             insert into operational_log.customers_log(
-            ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,executing_time)
+            ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,executing_time,silver_main_rows_updated_count,silver_main_rows_inserted_count)
             values(
             (select ingestion_id from operational_log.ingestion_id),
             'customers',
@@ -625,9 +625,11 @@ BEGIN
             silver_customers_row_count,
             silver_customers_null_pk_count,
             silver_customers_null_count,
-            silver_customers_future_past_count,
             silver_customers_duplicate_count,
+            silver_customers_future_past_count,
             silver_customers_null_pk_count + silver_customers_null_count + silver_customers_future_past_count,
+            null,
+            null,
             null
             );
             end;
@@ -716,7 +718,7 @@ BEGIN
 
             /*insert into operational_log*/
             insert into operational_log.payments_log(
-            ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,negative_count,executing_time,log_created_at
+            ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,negative_count,executing_time,silver_main_rows_updated_count,silver_main_rows_inserted_count
             )values(
             (select ingestion_id from operational_log.ingestion_id),
             'payments',
@@ -728,7 +730,8 @@ BEGIN
             silver_payments_future_past_count,  
             silver_payments_null_pk_count + silver_payments_null_count + silver_payments_future_past_count+silver_payments_negative_count,
             silver_payments_negative_count,
-            clock_timestamp() - first_time,
+            null,
+            null,
             null
             );
 
@@ -743,6 +746,14 @@ $$;
 create or replace procedure silver.order_items_validation_optimized()
 language PLPGSQL
 as $$
+declare
+silver_order_items_duplicate_count int;
+silver_order_items_null_pk_count int;
+silver_order_items_null_count int;
+silver_order_items_negative_count int;
+bronze_order_items_row_count int;
+silver_order_items_row_count int;
+first_time timestamp := clock_timestamp();
 begin
 
             /*Qurantine */
@@ -768,15 +779,236 @@ begin
             )select
             count(*) filter (where reject_reason ='missing_pk'), 
             count(*) filter (where reject_reason ='missing_required_fields'),
-            count(*) filter (where reject_reason ='negative_quantity')
+            count(*) filter (where reject_reason ='negative_values')
+            INTO
+            silver_order_items_null_pk_count,
+            silver_order_items_null_count,
+            silver_order_items_negative_count
             from inserted;
 
 
-            /*
+            /*Duplicate count */
+            select count(*) into silver_order_items_duplicate_count from (
+            select order_id,
+            row_number() over(partition by order_id,product_id,quantity,unit_price,total order by created_at_bronze desc) as rn
+            from bronze.order_items_raw_daily
+            ) ranked
+            where rn>1;
+
+            /*row count*/
+            select count(*) into bronze_order_items_row_count from bronze.order_items_raw_daily;
+            select count(*) into silver_order_items_row_count from silver.order_items_daily;
+
+            raise notice '[order_items]bronze row count: %',bronze_order_items_row_count;
+            raise notice '[order_items]silver row count: %',silver_order_items_row_count;
+            raise notice '[order_items]null pk count: %',silver_order_items_null_pk_count;
+            raise notice '[order_items]null count: %',silver_order_items_null_count;
+            raise notice '[order_items]duplicate count: %',silver_order_items_duplicate_count;
+            raise notice '[order_items]negative count: %',silver_order_items_negative_count;
+            raise notice '[order_items]executing time: %',clock_timestamp()-first_time;
 
 
+            /*insert into operational_log*/
+            insert into operational_log.order_items_log(
+            ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,quarantine_count,negative_count,executing_time,silver_main_rows_updated_count,silver_main_rows_inserted_count
+            )values(
+            (select ingestion_id from operational_log.ingestion_id),
+            'order_items',
+            bronze_order_items_row_count,
+            silver_order_items_row_count,
+            silver_order_items_null_pk_count,
+            silver_order_items_null_count,
+            silver_order_items_duplicate_count,
+            silver_order_items_null_pk_count + silver_order_items_null_count + silver_order_items_negative_count,
+            silver_order_items_negative_count,
+            null,
+            null,
+            null
+            );
+
+            RAISE NOTICE 'Full validation for [order_items] completed in %', clock_timestamp() - first_time;
 
 
 end;
 $$;
 
+
+
+
+/*Order_items optimized validation */
+create or replace procedure silver.orders_validation_optimized()
+language PLPGSQL
+as $$
+declare
+silver_orders_null_pk_count int;
+silver_orders_null_count int;
+silver_orders_future_or_past_date_count int;
+silver_orders_duplicate_count int;
+bronze_orders_row_count int;
+silver_orders_row_count int;
+first_time timestamp := clock_timestamp();
+begin
+
+        /*Qurantine */
+        with deleted as(
+        delete from silver.orders_daily
+        where nullif(order_id,'') is null or nullif(customer_id,'') is null or nullif(order_date::text,'') is null or nullif(status,'') is null OR
+        order_date>now()+interval '1 day' or order_date<'2015-01-01'
+        returning *,
+        case
+        when nullif(order_id,'') is null or nullif(customer_id,'') is null then 'missing_pk'
+        when nullif(order_date::text,'') is null or nullif(status,'') is null then 'missing_required_fields'
+        when order_date>now()+interval '1 day' or order_date<'2015-01-01' then 'future_or_past_date'
+        end as reject_reason
+        ),
+        inserted as(
+        insert into operational_log.quarantine(ingestion_id,table_name, reject_reason, raw_row)
+        select (select ingestion_id from operational_log.ingestion_id),
+        'orders',
+        reject_reason,
+        row_to_json(d)::JSONB
+        from deleted d
+        returning reject_reason
+        )select
+        count(*) filter (where reject_reason ='missing_pk'), 
+        count(*) filter (where reject_reason ='missing_required_fields'),
+        count(*) filter (where reject_reason ='future_or_past_date')
+        INTO
+        silver_orders_null_pk_count,
+        silver_orders_null_count,
+        silver_orders_future_or_past_date_count
+        from inserted;
+
+        /*Duplicate count */
+        select count(*) into silver_orders_duplicate_count from (
+        select order_id,
+        row_number() over(partition by order_id,customer_id,order_date,status order by created_at_bronze desc) as rn
+        from bronze.orders_raw_daily
+        ) ranked
+        where rn>1;
+
+        /*row count*/
+        select count(*) into bronze_orders_row_count from bronze.orders_raw_daily;
+        select count(*) into silver_orders_row_count from silver.orders_daily;
+
+        raise notice '[orders]bronze row count: %',bronze_orders_row_count;
+        raise notice '[orders]silver row count: %',silver_orders_row_count;
+        raise notice '[orders]null pk count: %',silver_orders_null_pk_count;
+        raise notice '[orders]null count: %',silver_orders_null_count;
+        raise notice '[orders]duplicate count: %',silver_orders_duplicate_count;
+        raise notice '[orders]future or past date count: %',silver_orders_future_or_past_date_count;
+        raise notice '[orders]executing time: %',clock_timestamp()-first_time;
+
+        /*insert into operational_log*/
+        insert into operational_log.orders_log(
+        ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,future_past_count,quarantine_count,executing_time,silver_main_rows_updated_count,silver_main_rows_inserted_count
+        )values(
+        (select ingestion_id from operational_log.ingestion_id),
+        'orders',
+        bronze_orders_row_count,
+        silver_orders_row_count,
+        silver_orders_null_pk_count,
+        silver_orders_null_count,
+        silver_orders_duplicate_count,
+        silver_orders_future_or_past_date_count,
+        silver_orders_null_pk_count + silver_orders_null_count + silver_orders_future_or_past_date_count,
+        null,
+        null,
+        null
+        );
+
+        RAISE NOTICE 'Full validation for [orders] completed in %', clock_timestamp() - first_time;
+
+
+end;
+$$;        
+
+
+
+/*Products optimized validation. */
+create or replace procedure silver.products_validation_optimized()
+language PLPGSQL
+as $$
+declare
+silver_products_null_pk_count int;
+silver_products_null_count int;
+silver_products_duplicate_count int;
+silver_products_negative_count int;
+bronze_products_row_count int;
+silver_products_row_count int;
+first_time timestamp := clock_timestamp();
+begin
+
+        /*Qurantine */
+        with deleted as(
+            delete from silver.products_daily
+            where nullif(product_id,'') is null or nullif(name,'') is null or nullif(category,'') is NULL
+            or nullif(price::text,'') is null or price<0
+            returning *,
+            CASE 
+               when nullif(product_id,'') is null then 'missing_pk'
+               when nullif(name,'') is null or nullif(category,'') is NULL or nullif(price::text,'') is null then 'missing_required_fields'
+               when price<0 then 'negative_price'
+               end as reject_reason
+        ),
+        inserted as(
+            insert into operational_log.quarantine(ingestion_id,table_name, reject_reason, raw_row)
+            select (select ingestion_id from operational_log.ingestion_id),
+            'products',
+            reject_reason,
+            row_to_json(d)::JSONB
+            from deleted d
+            returning reject_reason
+        )select
+        count(*) filter (where reject_reason ='missing_pk'),
+        count(*) filter (where reject_reason ='missing_required_fields'),
+        count(*) filter (where reject_reason ='negative_price')
+        into
+        silver_products_null_pk_count,
+        silver_products_null_count,
+        silver_products_negative_count
+        from inserted;
+
+
+        /*Duplicate count */
+        select count(*) into silver_products_duplicate_count from (
+        select product_id,
+        row_number() over(partition by product_id,name,category,price order by created_at_bronze desc) as rn
+        from bronze.products_raw_daily
+        ) ranked
+        where rn>1;
+
+        /*row count*/
+        select count(*) into bronze_products_row_count from bronze.products_raw_daily;
+        select count(*) into silver_products_row_count from silver.products_daily;  
+
+        raise notice '[products]bronze row count: %',bronze_products_row_count;
+        raise notice '[products]silver row count: %',silver_products_row_count;
+        raise notice '[products]null pk count: %',silver_products_null_pk_count;
+        raise notice '[products]null count: %',silver_products_null_count;
+        raise notice '[products]duplicate count: %',silver_products_duplicate_count;
+        raise notice '[products]negative count: %',silver_products_negative_count;
+        raise notice '[products]executing time: %',clock_timestamp()-first_time;
+
+        /*insert into operational_log*/
+        insert into operational_log.products_log(
+        ingestion_id,table_name,bronze_row_count,silver_row_count,null_pk_count,other_null_count,duplicate_count,negative_count,quarantine_count,executing_time,silver_main_rows_updated_count,silver_main_rows_inserted_count
+        )values(
+        (select ingestion_id from operational_log.ingestion_id),
+        'products',
+        bronze_products_row_count,
+        silver_products_row_count,
+        silver_products_null_pk_count,
+        silver_products_null_count,
+        silver_products_duplicate_count,
+        silver_products_negative_count,
+        silver_products_null_pk_count + silver_products_null_count + silver_products_duplicate_count + silver_products_negative_count,
+        null,
+        null,
+        null
+        );
+
+        RAISE NOTICE 'Full validation for [products] completed in %', clock_timestamp() - first_time;
+
+end;
+$$;
