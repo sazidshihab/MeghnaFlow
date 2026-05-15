@@ -1,4 +1,4 @@
--- Active: 1776668343304@@127.0.0.1@5432@Demo_warehouse
+-- Active: 1776668343304@@127.0.0.1@5432@Demo_warehouse@public
 
 /*
 SELECT pg_terminate_backend(pid) 

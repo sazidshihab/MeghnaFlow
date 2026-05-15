@@ -8,9 +8,28 @@ call silver.create_tables_silver(); /* Creating all raw table on silver for the 
 
 call silver.silver_daily_table_drop();/*Using this step untill creating of gold layer, just dropping daily silver table.*/
 
+
+
+/*Full silver sequential import*/
 call silver.silver_import_full(); /* Ingesting data into the silver layer from the bronze layer (FULL LOAD),
 here also daily table contains daily data and raw table contains all time data. */
 
 
 
+/*Full silver parallel import*/
+
+
+--1. Run above below procedures on one session on terminal to execute those 3 sequentially for best performance. --
+/*
+call silver.parallel_silver_import_payment();
+call silver.parallel_silver_import_orders();
+call silver.parallel_silver_import_customers_products();
+*/
+
+--2. Run this procedure parallelly on different session on terminal.--
+/*
+call silver.parallel_silver_import_order_items();
+*/
+
+--Parallel run saves around 30% time than sequential run for silver import. Time may vary based on the system configuration and data size.
 

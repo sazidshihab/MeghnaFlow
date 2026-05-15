@@ -1,4 +1,41 @@
 -- Active: 1776668343304@@127.0.0.1@5432@Demo_warehouse@operational_log
+CREATE OR REPLACE PROCEDURE operational_log.bronze_ingest_safetynet()
+LANGUAGE plpgsql
+AS 
+$$
+BEGIN
+drop table if exists operational_log.bronze_ingest_safetynet;
+create table operational_log.bronze_ingest_safetynet(
+    ingestion_id int,
+    file_name varchar(255),
+    table_name VARCHAR(255),
+    file_path VARCHAR(255),
+    bronze_row_count int,
+    silver_daily_row_count int,
+    silver_main_row_count int,
+    null_pk_count int,
+    other_null_count int,
+    duplicate_count int,
+    future_past_count int,
+    negative_count int,
+    quarantine_count int,
+    silver_daily_insert_executing_time INTERVAL,
+    silver_main_insert_executing_time INTERVAL,
+    silver_main_update_executing_time INTERVAL,
+    total_silver_process_executing_time INTERVAL,
+    bronze_daily_copy_executing_time INTERVAL,
+    bronze_main_insert_executing_time INTERVAL,
+    total_bronze_process_executing_time INTERVAL,
+    created_at timestamp default current_date,
+    primary key( table_name, created_at)
+);
+end;
+$$;
+
+
+call operational_log.bronze_ingest_safetynet();
+
+
 create or replace procedure operational_log.quarantine_table_create()
 LANGUAGE plpgsql
 
@@ -28,87 +65,126 @@ BEGIN
 
         drop table if exists operational_log.customers_log;
         create table operational_log.customers_log(
-        ingestion_id int  primary key,
-        table_name varchar(255),
+        ingestion_id int primary key,
+        file_name varchar(255),
+        table_name VARCHAR(255),
+        file_path VARCHAR(255),
         bronze_row_count int,
-        silver_row_count int,
+        silver_daily_row_count int,
+        silver_main_row_count int,
         null_pk_count int,
         other_null_count int,
         duplicate_count int,
         future_past_count int,
+        negative_count int,
         quarantine_count int,
-        executing_time INTERVAL,
-        silver_main_rows_updated_count int,
-        silver_main_rows_inserted_count int,
+        silver_daily_insert_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
+        silver_main_update_executing_time INTERVAL,
+        total_silver_process_executing_time INTERVAL,
+        bronze_daily_copy_executing_time INTERVAL,
+        bronze_main_insert_executing_time INTERVAL,
+        total_bronze_process_executing_time INTERVAL,
         log_created_at timestamp default current_timestamp
         ) ;
 
         drop table if exists operational_log.order_items_log;
         create table operational_log.order_items_log(
-        ingestion_id int  primary key,
-        table_name varchar(255),
-        bronze_row_count int,
-        silver_row_count int,
-        null_pk_count int,
-        other_null_count int,
-        duplicate_count int,
-        quarantine_count int,
-        negative_count int,
-        executing_time INTERVAL,
-        silver_main_rows_updated_count int,
-        silver_main_rows_inserted_count int,
+            ingestion_id int primary key,
+            file_name varchar(255),
+            table_name VARCHAR(255),
+            file_path VARCHAR(255),
+            bronze_row_count int,
+            silver_daily_row_count int,
+            silver_main_row_count int,
+            null_pk_count int,
+            other_null_count int,
+            duplicate_count int,
+            future_past_count int,
+            negative_count int,
+            quarantine_count int,
+            silver_daily_insert_executing_time INTERVAL,
+            silver_main_insert_executing_time INTERVAL,
+            silver_main_update_executing_time INTERVAL,
+            total_silver_process_executing_time INTERVAL,
+            bronze_daily_copy_executing_time INTERVAL,
+            bronze_main_insert_executing_time INTERVAL,
+            total_bronze_process_executing_time INTERVAL,   
         log_created_at timestamp default current_timestamp
         ) ;
 
         drop table if exists operational_log.orders_log;
         create table operational_log.orders_log(
-        ingestion_id int  primary key,
-        table_name varchar(255),
-        bronze_row_count int,
-        silver_row_count int,
-        null_pk_count int,
-        other_null_count int,
-        duplicate_count int,
-        future_past_count int,
-        quarantine_count int,
-        executing_time INTERVAL,
-        silver_main_rows_updated_count int,
-        silver_main_rows_inserted_count int,
+            ingestion_id int,
+            file_name varchar(255),
+            table_name VARCHAR(255),
+            file_path VARCHAR(255),
+            bronze_row_count int,
+            silver_daily_row_count int,
+            silver_main_row_count int,
+            null_pk_count int,
+            other_null_count int,
+            duplicate_count int,
+            future_past_count int,
+            negative_count int,
+            quarantine_count int,
+            silver_daily_insert_executing_time INTERVAL,
+            silver_main_insert_executing_time INTERVAL,
+            silver_main_update_executing_time INTERVAL,
+            total_silver_process_executing_time INTERVAL,
+            bronze_daily_copy_executing_time INTERVAL,
+            bronze_main_insert_executing_time INTERVAL,
+            total_bronze_process_executing_time INTERVAL,
         log_created_at timestamp default current_timestamp
         ) ;
 
         drop table if exists operational_log.payments_log;
         create table operational_log.payments_log(
-        ingestion_id int  primary key,
-        table_name varchar(255),
-        bronze_row_count int,
-        silver_row_count int,
-        null_pk_count int,
-        other_null_count int,
-        duplicate_count int,
-        future_past_count int,
-        quarantine_count int,
-        negative_count int,
-        executing_time INTERVAL,
-        silver_main_rows_updated_count int,
-        silver_main_rows_inserted_count int,
+            ingestion_id int,
+            file_name varchar(255),
+            table_name VARCHAR(255),
+            file_path VARCHAR(255),
+            bronze_row_count int,
+            silver_daily_row_count int,
+            silver_main_row_count int,
+            null_pk_count int,
+            other_null_count int,
+            duplicate_count int,
+            future_past_count int,
+            negative_count int,
+            quarantine_count int,
+            silver_daily_insert_executing_time INTERVAL,
+            silver_main_insert_executing_time INTERVAL,
+            silver_main_update_executing_time INTERVAL,
+            total_silver_process_executing_time INTERVAL,
+            bronze_daily_copy_executing_time INTERVAL,
+            bronze_main_insert_executing_time INTERVAL,
+            total_bronze_process_executing_time INTERVAL,
         log_created_at timestamp default current_timestamp
         ) ;
 
         drop table if exists operational_log.products_log;
         create table operational_log.products_log(
-        ingestion_id int  primary key,
-        table_name varchar(255),
+        ingestion_id int,
+        file_name varchar(255),
+        table_name VARCHAR(255),
+        file_path VARCHAR(255),
         bronze_row_count int,
-        silver_row_count int,
+        silver_daily_row_count int,
+        silver_main_row_count int,
         null_pk_count int,
         other_null_count int,
         duplicate_count int,
+        future_past_count int,
         negative_count int,
         quarantine_count int,
-        executing_time INTERVAL,
-        silver_main_rows_updated_count int,
-        silver_main_rows_inserted_count int,
+        silver_daily_insert_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
+        silver_main_update_executing_time INTERVAL,
+        total_silver_process_executing_time INTERVAL,
+        bronze_daily_copy_executing_time INTERVAL,
+        bronze_main_insert_executing_time INTERVAL,
+        total_bronze_process_executing_time INTERVAL,
         log_created_at timestamp default current_timestamp
         ) ;
 
@@ -134,7 +210,8 @@ $$;
 call operational_log.ingestion_id_create();
 
 
-select * from ingestion_id
+select * from ingestion_id;
+select ingestion_id from operational_log.ingestion_id;
 
 
 select * from customers_log;
@@ -149,6 +226,4 @@ where table_name='customers' and ingestion_id=21;
 select raw_row->>'name',raw_row->>'customer_id',raw_row->>'signup_date'  from operational_log.quarantine;
 
 
-select count(*) from silver.customers;
-select count(*) from silver.customers_daily;
-select count(*) from bronze.customers_raw;
+select * from operational_log.bronze_ingest_safetynet;
