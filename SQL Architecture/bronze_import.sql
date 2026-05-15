@@ -162,14 +162,27 @@ Begin
                 raise notice 'Step 4: Customer data ingested successfully to main table...';
 
                 --Inserting log and safeteynet data --
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count,copy_executing_time,insert_executing_time,created_at)
+                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
                 values((select ingestion_id from operational_log.ingestion_id),
                 'customers_' || current_date || '.csv',
                 'customers',
                 '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_ '|| current_date || '.csv',
                 local_bronze_row_count,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 second_time-first_time,
                 clock_timestamp()-third_time,
+                clock_timestamp()-first_time,
                 current_date
                 );
 
@@ -215,14 +228,27 @@ Begin
 
                 raise notice 'Step 4: Product data ingested successfully to main table...';
 
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count,copy_executing_time,insert_executing_time,created_at)
+                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
                 values((select ingestion_id from operational_log.ingestion_id),
                 'products_' || current_date || '.csv',
                 'products',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_'|| current_date || '.csv',
+                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_ '|| current_date || '.csv',
                 local_bronze_row_count,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,                
+                null,
+                null,
+                null,
+                null,
                 second_time-first_time,
                 clock_timestamp()-third_time,
+                clock_timestamp()-first_time,
                 current_date
                 );
 
@@ -265,14 +291,27 @@ Begin
 
                 raise notice 'Step 4: Order data ingested successfully to main table...';
 
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count,copy_executing_time,insert_executing_time,created_at)
+                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
                 values((select ingestion_id from operational_log.ingestion_id),
                 'orders_' || current_date || '.csv',
                 'orders',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_'|| current_date || '.csv',
+                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_' || current_date || '.csv',
                 local_bronze_row_count,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 second_time-first_time,
                 clock_timestamp()-third_time,
+                clock_timestamp()-first_time,
                 current_date
                 );
 
@@ -313,15 +352,28 @@ Begin
 
                 raise notice 'Step 4: Order Item data ingested successfully to main table...';
                 
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count,copy_executing_time,insert_executing_time,created_at)
+                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
                 values((select ingestion_id from operational_log.ingestion_id),
                 'order_items_' || current_date || '.csv',
                 'order_items',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_'|| current_date || '.csv',
+                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_' || current_date || '.csv',
                 local_bronze_row_count,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 second_time-first_time,
                 clock_timestamp()-third_time,
-                current_date    
+                clock_timestamp()-first_time,
+                current_date
                 );
 
         else 
@@ -360,14 +412,27 @@ Begin
 
                 raise notice 'Step 4: Payment data ingested successfully to main table...';
 
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count,copy_executing_time,insert_executing_time,created_at)
+                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
                 values((select ingestion_id from operational_log.ingestion_id),
                 'payments_' || current_date || '.csv',
                 'payments',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_'|| current_date || '.csv',
+                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_' || current_date || '.csv',
                 local_bronze_row_count,
+                null,
+                null,
+                null,
+                null,   
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 second_time-first_time,
                 clock_timestamp()-third_time,
+                clock_timestamp()-first_time,
                 current_date
                 );
 
