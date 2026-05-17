@@ -10,7 +10,8 @@ BEGIN
                     customer_id text,
                     name text,
                     signup_date text, 
-                    created_at_bronze timestamp default current_timestamp
+                    created_at_bronze timestamp default current_timestamp,
+                    source_file_name text
                 );
 
 
@@ -20,7 +21,8 @@ BEGIN
                     name text,
                     category text,
                     price text,
-                    created_at_bronze timestamp default current_timestamp
+                    created_at_bronze timestamp default current_timestamp,
+                    source_file_name text
                 );
 
 
@@ -30,7 +32,8 @@ BEGIN
                 customer_id text,
                 order_date text,
                 status text,
-                created_at_bronze timestamp default current_timestamp
+                created_at_bronze timestamp default current_timestamp,
+                source_file_name text
                 );
 
         drop table if exists bronze.order_items_raw;
@@ -40,7 +43,8 @@ BEGIN
                 quantity text,
                 unit_price text,
                 total text,
-                created_at_bronze timestamp default current_timestamp
+                created_at_bronze timestamp default current_timestamp,
+                source_file_name text
                 );
 
 
@@ -52,7 +56,8 @@ BEGIN
                     order_date text,
                     total text,
                     payment_date text,
-                    created_at_bronze timestamp default current_timestamp
+                    created_at_bronze timestamp default current_timestamp,
+                    source_file_name text
                 );
 
 end;
@@ -70,8 +75,27 @@ Table creation complete. Now we will ingest data into the bronze layer from CSV 
 ===============
 ===============
 
+/*Bronze unlogged tables for daily ingestion*/
+Create or replace procedure bronze.uncloged_bronze_tables()
+language PLPGSQL
+as $$
+BEGIN
+
+        create UNLOGGED table bronze.customers_raw_daily(customer_id text, name text, signup_date text, created_at_bronze timestamp default current_timestamp, source_file_name text);
+        create UNLOGGED table bronze.products_raw_daily(product_id text, name text, category text, price text, created_at_bronze timestamp default current_timestamp, source_file_name text);
+        create UNLOGGED table bronze.orders_raw_daily(order_id text, customer_id text, order_date text, status text, created_at_bronze timestamp default current_timestamp, source_file_name text);
+        create UNLOGGED table bronze.order_items_raw_daily(order_id text, product_id text, quantity text, unit_price text, total text, created_at_bronze timestamp default current_timestamp, source_file_name text);
+        create UNLOGGED table bronze.payments_raw_daily(payment_id text, method text, order_id text, order_date text, total text, payment_date text, created_at_bronze timestamp default current_timestamp, source_file_name text);
+         
+end;
+$$;
+
+call bronze.uncloged_bronze_tables();
 
 
+
+====================
+====================
 /*
 Procedure to drop all table :
 */

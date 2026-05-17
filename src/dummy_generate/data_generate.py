@@ -1,16 +1,18 @@
+
 import pandas as pd
 import numpy as np
 from faker import Faker
 from datetime import timedelta
+
 
 fake = Faker()
 
 # -----------------------
 # CONFIG (adjust size)
 # -----------------------
-N_CUSTOMERS = 100000
+N_CUSTOMERS = 1000
 N_PRODUCTS = 1000
-N_ORDERS = 20000000   # reduce if your Mac struggles
+N_ORDERS = 2000   # reduce if your Mac struggles
 
 # -----------------------
 # 1. PRODUCTS
@@ -112,14 +114,16 @@ payments.loc[mask, "total"] = None
 # -----------------------
 # SAVE TO CSV
 # -----------------------
-products.to_csv("Data/products_raw.csv", index=False)
-customers.to_csv("Data/customers_raw.csv", index=False)
-orders.to_csv("Data/orders_raw.csv", index=False)
-order_items.to_csv("Data/order_items_raw.csv", index=False)
-payments.to_csv("Data/payments_raw.csv", index=False)
+products.to_csv("products_raw.csv", index=False)
+customers.to_csv("customers_raw.csv", index=False)
+orders.to_csv("orders_raw.csv", index=False)
+order_items.to_csv("order_items_raw.csv", index=False)
+payments.to_csv("payments_raw.csv", index=False)
 
 print("✅ All datasets generated successfully!")
 
 import pandas as pd
-data=pd.read_csv("Data/payments_raw.csv").head()
+data=pd.read_csv("payments_raw.csv").head()
 print(data)
+
+# %%

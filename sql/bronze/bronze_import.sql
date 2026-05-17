@@ -384,8 +384,18 @@ Data ingestion into the bronze layer is complete. We can now proceed to create t
 ========================
 
 
-
 ========================
+
+
+
+select * from bronze.customers_raw_daily
+order by created_at_bronze desc;
+select * from bronze.products_raw_daily;
+select max(created_at_bronze),min(created_at_bronze) from bronze.orders_raw_daily
+where source_file_name is not null ;
+select count(*) from bronze.order_items_raw_daily;
+select count(*) from bronze.payments_raw_daily;
+
 
 
 
@@ -393,7 +403,12 @@ Data ingestion into the bronze layer is complete. We can now proceed to create t
 
 select datname,pid, (now()-query_start)::time as time_,query as "query/command", state as "state/bytes_total" , backend_type as "backend_type/tuples_processed" from pg_stat_activity where state='active' and query not like '%select datname%' 
 union all
-select datname, pid,null::time, command as "query/command",bytes_total::text as "state/bytes_total",tuples_processed::text as "backend_type/tuples_processed" from   pg_stat_progress_copy;
+select datname, pid,null::time, 
+command as "que
+ry/comman
+d",bytes_total::text as "state/
+bytes_tot
+al",tuples_processed::text as "backend_type/tuples_processed" from   pg_stat_progress_copy;
 
 
 SELECT * FROM pg_stat_wal;
@@ -401,16 +416,6 @@ SELECT * FROM pg_stat_wal;
 
 select * from pg_stat_activity where state='active';
 select * from information_schema.tables where table_name like '%stat%';
-
-
-
-
-
-
-
-
-
-
 
 
 
