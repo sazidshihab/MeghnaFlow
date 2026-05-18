@@ -1,5 +1,9 @@
 -- Active: 1776668343304@@127.0.0.1@5432@Demo_warehouse@bronze
 
+====================
+--PG tuning START--
+===================
+
 /*
 Performance tuning : Permanant change.
 */
@@ -28,376 +32,393 @@ WHERE source NOT IN ('default', 'override');
 /*
 END
 */
-
-========================
-
-
-========================
+=======================
+--PG tuning END--
+=======================
 
 
-create or replace procedure bronze_ingest()
-LANGUAGE plpgsql
+------------------------------------------------------------------------------------------------------------
+
+
+=========================================
+--PROCEDURES (Used by Python)-- START
+=========================================
+
+/*Bronze main table ingest + safetynet log table creation*/
+/*Those procedures will be call from bronze_daily_to_bronze_main.py and data will load from daily table to main bronze table. */
+
+
+create or replace procedure bronze.brone_daily_to_bronze_main_customers()
+language plpgsql
 as $$
+
 DECLARE
 local_bronze_row_count int;
 first_time timestamp;
-second_time timestamp;
-third_time timestamp;
+index_first_time timestamp;
+index_time interval;
+insert_time interval;
+bronze_copy_time interval;
 
-Begin
-
-
-        /*Inserting ingestion_id to table:[This table is for one session] */
-        truncate table operational_log.ingestion_id;
-        insert into operational_log.ingestion_id(created_at) values(now());
+begin 
 
 
         /*Dropping silver daily temporary table before inserting new data to bronze*/
         call silver.silver_daily_table_drop();
 
+        bronze_copy_time :=(select max(executing_time) from operational_log.bronze_raw_daily_ingest_log where table_name = 'customers' and ingestion_id = (select ingestion_id from operational_log.ingestion_id))* interval '1 second';
+        
+
+
 
         /*
         IMPORTING DATA INTO THE BRONZE LAYER (customers_raw)
         */
-        if not exists(select 1 from operational_log.bronze_ingest_safetynet where table_name = 'customers' and created_at = current_date)
-        then /*safetynet check to prevent same day ingestion*/
 
-                RAISE NOTICE 'Step 1: Starting to ingest Customer data to bronze daily table...';
+        RAISE NOTICE 'Step 1: Customer data ingested successfully using Python Multithreading. Now creating index for it....';
+
+        index_first_time := clock_timestamp();
+        CREATE INDEX ON bronze.customers_raw_daily(created_at_bronze, customer_id)include(name, signup_date, source_file_id);
+        index_time := clock_timestamp()-index_first_time;
+
+        raise notice '->Index created successfully';
+
+        RAISE NOTICE 'Step 2: Starting to ingest Customer data to main table....';
+
+
+        first_time := clock_timestamp();
+        insert into bronze.customers_raw
+        select * from bronze.customers_raw_daily;
+        insert_time := clock_timestamp()-first_time;
+
+
+        get diagnostics local_bronze_row_count = row_count;
+
+        raise notice 'Step 3: Customer data ingested successfully to main table...';
+
+        --Inserting log and safeteynet data --
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
+        values((select ingestion_id from operational_log.ingestion_id),
+        'customers',
+        local_bronze_row_count,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        bronze_copy_time,
+        index_time,
+        insert_time,
+        (insert_time + (bronze_copy_time) +  index_time),
+        current_date
+        );
 
-                create UNLOGGED table bronze.customers_raw_daily(customer_id text, name text, signup_date text, created_at_bronze timestamp default current_timestamp);
-
-                first_time := clock_timestamp();
-                COPY bronze.customers_raw_daily(customer_id, name, signup_date)
-                FROM  program 'head -n 1000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_2026-05-03.csv"'
-                WITH (FORMAT csv, HEADER true);
-                second_time := clock_timestamp();
-               
-
-                get diagnostics local_bronze_row_count = row_count;
-
-
-                RAISE NOTICE 'Step 2: Customer data ingested successfully in % mins to bronze daily table and creating index for it....',second_time-first_time;
-
-                CREATE INDEX ON bronze.customers_raw_daily(created_at_bronze, customer_id)include(name, signup_date);
-
-                raise notice '->Index created successfully';
-
-                RAISE NOTICE 'Step 3: Starting to ingest Customer data to main table....';
-
-
-                third_time := clock_timestamp();
-                insert into bronze.customers_raw
-                select * from bronze.customers_raw_daily;
-
-                raise notice 'Step 4: Customer data ingested successfully to main table...';
-
-                --Inserting log and safeteynet data --
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
-                values((select ingestion_id from operational_log.ingestion_id),
-                'customers_' || current_date || '.csv',
-                'customers',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/customers/customers_ '|| current_date || '.csv',
-                local_bronze_row_count,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                second_time-first_time,
-                clock_timestamp()-third_time,
-                clock_timestamp()-first_time,
-                current_date
-                );
-
-
-        else 
-                raise notice 'Data already ingested for today for CUSTOMERS table';
-        end if;
-
-        
-        
-
-
-        /*
-        IMPORTING DATA INTO THE BRONZE LAYER (products_raw)
-       */
-
-        if not exists(select 1 from operational_log.bronze_ingest_safetynet where table_name = 'products' and created_at = current_date)
-        then
-
-                RAISE NOTICE 'Step 1: Starting to ingest Product data to bronze daily table ...';
-
-                create UNLOGGED table bronze.products_raw_daily(product_id text, name text, category text, price text, created_at_bronze timestamp default current_timestamp);
-
-                first_time := clock_timestamp();
-                copy bronze.products_raw_daily(product_id, name, category, price)
-                from  program 'head -n 1000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_2026-05-04.csv"'
-                with (format csv, header true);
-                second_time := clock_timestamp();
-
-                get diagnostics local_bronze_row_count = row_count;
-
-                RAISE NOTICE 'Step 2: Product data ingested successfully to brone daily table and creating index for it....';
-
-                CREATE INDEX ON bronze.products_raw_daily(created_at_bronze, product_id)include(name, category, price);
-
-                raise notice '->Index created successfully';
-
-                RAISE NOTICE 'Step 3: Starting to ingest Product data to main table....';
-
-                third_time := clock_timestamp();
-                insert into bronze.products_raw
-                select * from bronze.products_raw_daily;
-
-                raise notice 'Step 4: Product data ingested successfully to main table...';
-
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
-                values((select ingestion_id from operational_log.ingestion_id),
-                'products_' || current_date || '.csv',
-                'products',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/products/products_ '|| current_date || '.csv',
-                local_bronze_row_count,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,                
-                null,
-                null,
-                null,
-                null,
-                second_time-first_time,
-                clock_timestamp()-third_time,
-                clock_timestamp()-first_time,
-                current_date
-                );
-
-
-        else 
-                raise notice 'Data already ingested for today for PRODUCTS table';
-        end if;
-
-
-
-        /*
-        IMPORTING DATA INTO THE BRONZE LAYER (orders_raw)
-        */
-        if not exists(select 1 from operational_log.bronze_ingest_safetynet where table_name = 'orders' and created_at = current_date)
-        then
-
-                RAISE NOTICE 'Step 1: Starting to ingest Order data to bronze daily table...';
-                
-                create UNLOGGED table bronze.orders_raw_daily(order_id text, customer_id text, order_date text, status text, created_at_bronze timestamp default current_timestamp);
-                
-                first_time := clock_timestamp();
-                copy bronze.orders_raw_daily(order_id, customer_id, order_date, status)
-                from  program 'head -n 1000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_2026-05-04.csv"'
-                with(format csv, header true);
-                second_time := clock_timestamp();
-
-                get diagnostics local_bronze_row_count = row_count;
-
-                RAISE NOTICE 'Step 2: Order data ingested successfully to bronze daily table and creating index for it....';
-
-                CREATE INDEX ON bronze.orders_raw_daily(created_at_bronze, order_id, customer_id)include( order_date, status);
-
-                raise notice '->Index created successfully';
-
-                RAISE NOTICE 'Step 3: Starting to ingest Order data to main table....';
-
-                third_time := clock_timestamp();
-                insert into bronze.orders_raw
-                select * from bronze.orders_raw_daily;
-
-                raise notice 'Step 4: Order data ingested successfully to main table...';
-
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
-                values((select ingestion_id from operational_log.ingestion_id),
-                'orders_' || current_date || '.csv',
-                'orders',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/orders/orders_' || current_date || '.csv',
-                local_bronze_row_count,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                second_time-first_time,
-                clock_timestamp()-third_time,
-                clock_timestamp()-first_time,
-                current_date
-                );
-
-        else 
-                raise notice 'Data already ingested for today for ORDERS table';
-        end if;
- 
-
-        /*
-        IMPORTING DATA INTO THE BRONZE LAYER (order_items_raw)
-        */
-        if not exists(select 1 from operational_log.bronze_ingest_safetynet where table_name = 'order_items' and created_at = current_date)
-        then
-
-                RAISE notice 'Step 1: Starting to ingest Order Item data into bronze daily table...';
-                
-                create UNLOGGED table bronze.order_items_raw_daily(order_id text, product_id text, quantity text, unit_price text, total text, created_at_bronze timestamp default current_timestamp);
-        
-                first_time := clock_timestamp();
-                copy bronze.order_items_raw_daily(order_id, product_id, quantity, unit_price, total)
-                from  program 'head -n 1000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_2026-05-04.csv"'
-                with(format csv, header true);
-                second_time := clock_timestamp();
-
-                get diagnostics local_bronze_row_count = row_count;
-
-                RAISE NOTICE 'Step 2: Order Item data ingested successfully to bronze daily table and creating index for it....';
-
-                CREATE INDEX ON bronze.order_items_raw_daily(created_at_bronze, order_id, product_id)include( quantity, unit_price, total);
-
-                raise notice '->Index created successfully';
-
-                RAISE NOTICE 'Step 3: Starting to ingest Order Item data into main table...';
-                
-                third_time := clock_timestamp();
-                insert into bronze.order_items_raw
-                select * from bronze.order_items_raw_daily;
-
-                raise notice 'Step 4: Order Item data ingested successfully to main table...';
-                
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
-                values((select ingestion_id from operational_log.ingestion_id),
-                'order_items_' || current_date || '.csv',
-                'order_items',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/order_items/order_items_' || current_date || '.csv',
-                local_bronze_row_count,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                second_time-first_time,
-                clock_timestamp()-third_time,
-                clock_timestamp()-first_time,
-                current_date
-                );
-
-        else 
-                raise notice 'Data already ingested for today for ORDER_ITEMS table';
-        end if;
-
-        
-
-        /*
-        IMPORTING DATA INTO THE BRONZE LAYER (payments_raw)
-        */
-        if not exists(select 1 from operational_log.bronze_ingest_safetynet where table_name = 'payments' and created_at = current_date)
-        then
-        
-                RAISE NOTICE 'Step 1: Starting to ingest Payment data into bronze daily table...';
-                
-                create UNLOGGED table bronze.payments_raw_daily(payment_id text,method text, order_id text,  order_date text, total text, payment_date text,   created_at_bronze timestamp default current_timestamp);
-                
-                first_time := clock_timestamp();
-                copy bronze.payments_raw_daily(payment_id,  method, order_id,  order_date, total, payment_date)
-                from  program 'head -n 1000 "/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_2026-05-04.csv"'
-                with(format csv, header true);
-                second_time := clock_timestamp();
-
-                get diagnostics local_bronze_row_count = row_count;
-
-                RAISE NOTICE 'Step 2: Payment data ingested successfully to bronze daily table and creating index for it......';
-
-                CREATE INDEX ON bronze.payments_raw_daily(created_at_bronze, payment_id, order_id)include( method,  order_date, total, payment_date);
-
-                RAISE NOTICE 'Step 3: Starting to ingest Payment data into main table...';
-
-                third_time := clock_timestamp();
-                insert into bronze.payments_raw
-                select * from bronze.payments_raw_daily;
-
-                raise notice 'Step 4: Payment data ingested successfully to main table...';
-
-                insert into operational_log.bronze_ingest_safetynet(ingestion_id,file_name,table_name,file_path,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
-                values((select ingestion_id from operational_log.ingestion_id),
-                'payments_' || current_date || '.csv',
-                'payments',
-                '/Users/sazid/Work Station/SQL PDF/Warehouse Project/Demo_warehouse/Data/Landing/payments/payments_' || current_date || '.csv',
-                local_bronze_row_count,
-                null,
-                null,
-                null,
-                null,   
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                second_time-first_time,
-                clock_timestamp()-third_time,
-                clock_timestamp()-first_time,
-                current_date
-                );
-
-        else 
-                raise notice 'Data already ingested for today for PAYMENTS table';
-        end if;
-         
-        
 end;
 $$;
 
-call bronze_ingest();
+--call bronze.brone_daily_to_bronze_main_customers();
 
 
-/*
-Data ingestion into the bronze layer is complete. We can now proceed to create tables in the silver layer and ingest data from bronze to silver.
-*/
+
+create or replace procedure bronze.brone_daily_to_bronze_main_order_items()
+language plpgsql
+as $$
+
+DECLARE
+local_bronze_row_count int;
+first_time timestamp;
+index_first_time timestamp;
+index_time interval;
+insert_time interval;
+bronze_copy_time interval;
+
+begin
+
+         /*
+        IMPORTING DATA INTO THE BRONZE LAYER (order_items_raw)
+        */
+
+        bronze_copy_time := (select max(executing_time) from operational_log.bronze_raw_daily_ingest_log where table_name = 'order_items' and ingestion_id = (select ingestion_id from operational_log.ingestion_id))* interval '1 second';
+        RAISE NOTICE 'Step 1: Order Item data ingested successfully using Python Multithreading. Now creating index for it....';
+
+        index_first_time := clock_timestamp();
+        CREATE INDEX ON bronze.order_items_raw_daily(created_at_bronze, order_id, product_id)include( quantity, unit_price, total, source_file_id);
+        index_time := clock_timestamp()-index_first_time;
+        
+        raise notice '->Index created successfully';
+
+        RAISE NOTICE 'Step 2: Starting to ingest Order Item data into main table...';
+
+        first_time := clock_timestamp();
+        insert into bronze.order_items_raw
+        select * from bronze.order_items_raw_daily;
+        insert_time := clock_timestamp()-first_time;
+        get diagnostics local_bronze_row_count = row_count;
+
+        raise notice 'Step 3: Order Item data ingested successfully to main table...';
+
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
+        values((select ingestion_id from operational_log.ingestion_id),
+        'order_items',
+        local_bronze_row_count,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        bronze_copy_time,
+        index_time,
+        insert_time,
+        (insert_time + (bronze_copy_time) +  index_time),
+        current_date
+        );
+
+end;
+$$;
+
+--call bronze.brone_daily_to_bronze_main_order_items();
+
+
+
+
+
+
+
+create or replace procedure bronze.brone_daily_to_bronze_main_payments()
+
+language plpgsql
+as $$
+
+DECLARE
+local_bronze_row_count int;
+first_time timestamp;
+index_first_time timestamp;
+index_time interval;
+insert_time interval;
+bronze_copy_time interval;
+
+begin
+
+            /*
+            IMPORTING DATA INTO THE BRONZE LAYER (payments_raw)
+            */
+
+            bronze_copy_time := (select max(executing_time) from operational_log.bronze_raw_daily_ingest_log where table_name = 'payments' and ingestion_id = (select ingestion_id from operational_log.ingestion_id))* interval '1 second';
+            
+            RAISE NOTICE 'Step 1: Payment data ingested successfully using Python Multithreading. Now creating index for it....';
+    
+            index_first_time := clock_timestamp();
+            CREATE INDEX ON bronze.payments_raw_daily(created_at_bronze, payment_id, order_id)include( method, order_date, total, payment_date, source_file_id);
+            index_time := clock_timestamp()-index_first_time;
+            
+            raise notice '->Index created successfully';
+    
+            RAISE NOTICE 'Step 2: Starting to ingest Payment data into main table...';
+    
+            first_time := clock_timestamp();
+            insert into bronze.payments_raw
+            select * from bronze.payments_raw_daily;
+            insert_time := clock_timestamp()-first_time;
+            get diagnostics local_bronze_row_count = row_count;
+    
+            raise notice 'Step 3: Payment data ingested successfully to main table...';
+    
+            insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
+            values((select ingestion_id from operational_log.ingestion_id),
+            'payments',
+            local_bronze_row_count,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            bronze_copy_time,
+            index_time,
+            insert_time,
+            (insert_time + (bronze_copy_time) +  index_time),
+            current_date
+            );
+
+end;
+$$;
+
+--call bronze.brone_daily_to_bronze_main_payments();
+
+
+
+create or replace procedure bronze.brone_daily_to_bronze_main_orders()
+
+language plpgsql
+as $$
+
+DECLARE
+local_bronze_row_count int;
+first_time timestamp;
+index_first_time timestamp;
+index_time interval;
+insert_time interval;
+bronze_copy_time interval;
+
+begin 
+
+       /*
+        IMPORTING DATA INTO THE BRONZE LAYER (orders_raw)
+        */
+
+        bronze_copy_time := (select max(executing_time) from operational_log.bronze_raw_daily_ingest_log where table_name = 'orders' and ingestion_id = (select ingestion_id from operational_log.ingestion_id))* interval '1 second';
+
+        RAISE NOTICE 'Step 1: Order data ingested successfully using Python Multithreading. Now creating index for it....';
+
+
+        index_first_time := clock_timestamp();
+        CREATE INDEX ON bronze.orders_raw_daily(created_at_bronze, order_id, customer_id)include( order_date, status, source_file_id);
+        index_time := clock_timestamp()-index_first_time;
+
+        raise notice '->Index created successfully';
+
+        RAISE NOTICE 'Step 2: Starting to ingest Order data to main table....';
+
+        first_time := clock_timestamp();
+        insert into bronze.orders_raw
+        select * from bronze.orders_raw_daily;
+        insert_time := clock_timestamp()-first_time;
+        get diagnostics local_bronze_row_count = row_count;
+
+        raise notice 'Step 3: Order data ingested successfully to main table...';
+
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
+        values((select ingestion_id from operational_log.ingestion_id),
+        'orders',
+        local_bronze_row_count,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        bronze_copy_time,
+        index_time,
+        insert_time,
+        (insert_time + (bronze_copy_time) +  index_time),
+        current_date
+        );
+
+end;
+$$;
+
+--call bronze.brone_daily_to_bronze_main_orders();
+
+
+
+
+create or replace procedure bronze.brone_daily_to_bronze_main_products()
+
+language plpgsql
+as $$    
+
+DECLARE
+local_bronze_row_count int;
+first_time timestamp;
+index_first_time timestamp;
+index_time interval;
+insert_time interval;
+bronze_copy_time interval;
+
+begin 
+
+       /*
+        IMPORTING DATA INTO THE BRONZE LAYER (products_raw)
+        */
+        bronze_copy_time := (select max(executing_time) from operational_log.bronze_raw_daily_ingest_log where table_name = 'products' and ingestion_id = (select ingestion_id from operational_log.ingestion_id))* interval '1 second';
+        
+        RAISE NOTICE 'Step 1: Product data ingested successfully using Python Multithreading. Now creating index for it....';
+
+
+        index_first_time := clock_timestamp();
+        CREATE INDEX ON bronze.products_raw_daily(created_at_bronze, product_id)include( name, category, price, source_file_id);
+        index_time := clock_timestamp()-index_first_time;
+
+        raise notice '->Index created successfully';
+
+        RAISE NOTICE 'Step 2: Starting to ingest Product data to main table....';
+
+        first_time := clock_timestamp();
+        insert into bronze.products_raw
+        select * from bronze.products_raw_daily;
+        insert_time := clock_timestamp()-first_time;
+        get diagnostics local_bronze_row_count = row_count;
+
+        raise notice 'Step 3: Product data ingested successfully to main table...';
+
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_row_count, silver_daily_row_count, silver_main_row_count, null_pk_count, other_null_count, duplicate_count,  future_past_count, negative_count, quarantine_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_insert_executing_time,total_bronze_process_executing_time,created_at)
+        values((select ingestion_id from operational_log.ingestion_id),
+        'products',
+        local_bronze_row_count,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        bronze_copy_time,
+        index_time,
+        insert_time,
+        (insert_time + (bronze_copy_time) +  index_time),
+        current_date
+        );
+
+end;
+$$;
+
+--call bronze.brone_daily_to_bronze_main_products();
+
+=====================
+--BRONZE IMPORT-- END
+=====================
+
+
+
+------------------------------------------------------------------------------------------------------------
+
+
+
 
 ========================
-
-
+--PG Activity and WAL monitoring-- START
 ========================
-
-
-
-select * from bronze.customers_raw_daily
-order by created_at_bronze desc;
-select * from bronze.products_raw_daily;
-select max(created_at_bronze),min(created_at_bronze) from bronze.orders_raw_daily
-where source_file_name is not null ;
-select count(*) from bronze.order_items_raw_daily;
-select count(*) from bronze.payments_raw_daily;
-
-
-
 
 
 
@@ -416,6 +437,15 @@ SELECT * FROM pg_stat_wal;
 
 select * from pg_stat_activity where state='active';
 select * from information_schema.tables where table_name like '%stat%';
+
+========================================================
+--PG Activity and WAL monitoring-- END
+========================================================
+
+
+
+
+------------------------------------------------------------------------------------------------------------
 
 
 
