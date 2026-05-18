@@ -18,7 +18,7 @@ create table operational_log.bronze_raw_daily_ingest_log(
     source_file_name VARCHAR(255),
     table_name VARCHAR(255),
     row_count int,
-    executing_time numeric(10,2),
+    executing_time float8,
     created_at timestamp default current_date
 );
 end;
