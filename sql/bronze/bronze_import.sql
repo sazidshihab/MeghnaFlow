@@ -76,7 +76,7 @@ begin
         bronze_main_copy_time :=  (select max(executing_time) from operational_log.bronze_ingest_log where table_name='customers' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_raw') * interval '1 second';
         
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'customers',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='customers' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -132,7 +132,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'order_items',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='order_items' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -187,7 +187,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'payments',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='payments' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -241,7 +241,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'orders',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='orders' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -297,7 +297,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'products',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='products' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
