@@ -11,3 +11,18 @@ order by ingestion_id desc ;
 select * from operational_log.bronze_ingest_safetynet;
 
 select count(*) from bronze.customers_raw_daily;
+
+
+
+
+
+======================
+
+
+call bronze.create_bronze_daily_payments_index();
+
+call bronze.create_bronze_daily_payments_index();
+call silver.ingest_silver_daily_payments();
+call silver.payments_validation_optimized();
+
+

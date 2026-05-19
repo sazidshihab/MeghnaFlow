@@ -67,7 +67,8 @@ begin
         */
 
         index_first_time := clock_timestamp();
-        CREATE INDEX ON bronze.customers_raw_daily( customer_id,created_at_bronze);
+        CREATE INDEX ON bronze.customers_raw_daily(customer_id, created_at_bronze)
+        INCLUDE (name, signup_date);
         index_time := clock_timestamp()-index_first_time;
 
         
@@ -75,7 +76,7 @@ begin
         bronze_main_copy_time :=  (select max(executing_time) from operational_log.bronze_ingest_log where table_name='customers' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_raw') * interval '1 second';
         
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,created_at)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'customers',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='customers' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -86,11 +87,16 @@ begin
         null,
         null,
         null,
+        null,
         bronze_daily_copy_time ,
         index_time ,
         bronze_main_copy_time,
         bronze_daily_copy_time + index_time + bronze_main_copy_time,
-        current_date
+        null,
+        null,
+        null,
+        null,
+        null
         );
 
 end;
@@ -115,7 +121,8 @@ begin
 
 
         index_first_time := clock_timestamp();
-        CREATE INDEX ON bronze.order_items_raw_daily( order_id, product_id, created_at_bronze);
+        CREATE INDEX ON bronze.order_items_raw_daily(order_id, product_id, created_at_bronze)
+        INCLUDE (quantity, unit_price, total);
         index_time := clock_timestamp()-index_first_time;
 
         
@@ -125,7 +132,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,created_at)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'order_items',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='order_items' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -136,11 +143,16 @@ begin
         null,
         null,
         null,
+        null,
         bronze_daily_copy_time ,
         index_time ,
         bronze_main_copy_time,
         bronze_daily_copy_time + index_time + bronze_main_copy_time,
-        current_date
+        null,
+        null,
+        null,
+        null,
+        null
         );
 
 end;
@@ -166,7 +178,8 @@ begin
 
     
         index_first_time := clock_timestamp();
-        CREATE INDEX ON bronze.payments_raw_daily( payment_id, order_id, created_at_bronze);
+        CREATE INDEX ON bronze.payments_raw_daily(payment_id, order_id, created_at_bronze)
+        INCLUDE (payment_date, method, order_date, total);
         index_time := clock_timestamp()-index_first_time;
 
         bronze_daily_copy_time := (select max(executing_time) from operational_log.bronze_ingest_log where table_name='payments' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily') * interval '1 second';
@@ -174,7 +187,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,created_at)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'payments',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='payments' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -185,11 +198,16 @@ begin
         null,
         null,
         null,
+        null,
         bronze_daily_copy_time ,
         index_time ,
         bronze_main_copy_time,
         bronze_daily_copy_time + index_time + bronze_main_copy_time,
-        current_date
+        null,
+        null,
+        null,
+        null,
+        null
         );
 
 end;
@@ -214,7 +232,8 @@ index_time interval;
 begin 
 
         index_first_time := clock_timestamp();
-        CREATE INDEX ON bronze.orders_raw_daily( order_id, customer_id, created_at_bronze);
+        CREATE INDEX ON bronze.orders_raw_daily(order_id, customer_id, created_at_bronze)
+        INCLUDE (order_date, status);
         index_time := clock_timestamp()-index_first_time;
 
         bronze_daily_copy_time := (select max(executing_time) from operational_log.bronze_ingest_log where table_name='orders' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily') * interval '1 second';
@@ -222,7 +241,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,created_at)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'orders',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='orders' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -233,11 +252,16 @@ begin
         null,
         null,
         null,
+        null,
         bronze_daily_copy_time ,
         index_time ,
         bronze_main_copy_time,
         bronze_daily_copy_time + index_time + bronze_main_copy_time,
-        current_date
+        null,
+        null,
+        null,
+        null,
+        null
         );
 
 end;
@@ -263,7 +287,8 @@ index_time interval;
 begin 
 
         index_first_time := clock_timestamp();
-        CREATE INDEX ON bronze.products_raw_daily( product_id, created_at_bronze);
+        CREATE INDEX ON bronze.products_raw_daily(product_id, created_at_bronze)
+        INCLUDE (name, category, price);
         index_time := clock_timestamp()-index_first_time;
 
 
@@ -272,7 +297,7 @@ begin
 
 
         --Inserting log and safeteynet data --
-        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,created_at)
+        insert into operational_log.bronze_ingest_safetynet(ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count, silver_daily_row_count, silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,silver_main_update_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_pk_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
         values((select ingestion_id from operational_log.ingestion_id),
         'products',
         (select sum(row_count) from operational_log.bronze_ingest_log where table_name='products' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily' ),
@@ -283,11 +308,16 @@ begin
         null,
         null,
         null,
+        null,
         bronze_daily_copy_time ,
         index_time ,
         bronze_main_copy_time,
         bronze_daily_copy_time + index_time + bronze_main_copy_time,
-        current_date
+        null,
+        null,
+        null,
+        null,
+        null
         );
 end;
 $$;
@@ -310,31 +340,6 @@ $$;
 
 
 
-========================
---PG Activity and WAL monitoring-- START
-========================
-
-
-
-select datname,pid, (now()-query_start)::time as time_,query as "query/command", state as "state/bytes_total" , backend_type as "backend_type/tuples_processed" from pg_stat_activity where state='active' and query not like '%select datname%' 
-union all
-select datname, pid,null::time, 
-command as "que
-ry/comman
-d",bytes_total::text as "state/
-bytes_tot
-al",tuples_processed::text as "backend_type/tuples_processed" from   pg_stat_progress_copy;
-
-
-SELECT * FROM pg_stat_wal;
-
-
-select * from pg_stat_activity where state='active';
-select * from information_schema.tables where table_name like '%stat%';
-
-========================================================
---PG Activity and WAL monitoring-- END
-========================================================
 
 
 

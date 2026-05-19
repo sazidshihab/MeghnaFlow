@@ -173,7 +173,7 @@ def main():
 
     time1=time.time()
 
-    landing_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow/Data/Landing')
+    landing_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Landing')
     csv_files = list(landing_folder.glob("*.csv"))  
     #Listing all files in landing folder
 
@@ -188,7 +188,7 @@ def main():
           
           print(f"Total time taken: {time.time()-time1}")
           #move file from landing to archive after loading
-          archive_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow/Data/Archive')
+          archive_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Archive')
           for csv_file in csv_files:
               shutil.move(csv_file, archive_folder)
 

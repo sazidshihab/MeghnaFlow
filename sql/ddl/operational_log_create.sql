@@ -62,6 +62,7 @@ create table operational_log.bronze_ingest_safetynet(
     silver_daily_row_count int,
     silver_main_row_count int,
     silver_daily_insert_executing_time INTERVAL,
+    silver_daily_indexing_time INTERVAL,
     silver_main_insert_executing_time INTERVAL,
     silver_main_update_executing_time INTERVAL,
     total_silver_process_executing_time INTERVAL,
@@ -69,6 +70,11 @@ create table operational_log.bronze_ingest_safetynet(
     bronze_daily_indexing_time INTERVAL,
     bronze_main_copy_executing_time INTERVAL,
     total_bronze_process_executing_time INTERVAL,
+    silver_daily_null_pk_count int,
+    silver_daily_required_pk_count int,
+    silver_daily_duplicate_count int,
+    silver_daily_future_past_count int,
+    silver_daily_negative_count int,
     created_at timestamp default current_date,
     primary key(ingestion_id,table_name)
 );
@@ -126,7 +132,6 @@ BEGIN
     create table operational_log.quarantine(
         id SERIAL  primary key,
         ingestion_id int,
-        source_file_id int,
         table_name varchar(255),
         reject_reason varchar(255),
         flagged_at timestamp default current_timestamp,
@@ -170,6 +175,7 @@ BEGIN
         silver_daily_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_indexing_time INTERVAL,
         silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
@@ -177,6 +183,11 @@ BEGIN
         bronze_daily_indexing_time INTERVAL,
         bronze_main_copy_executing_time INTERVAL,
         total_bronze_process_executing_time INTERVAL,
+        silver_daily_null_pk_count int,
+        silver_daily_required_pk_count int,
+        silver_daily_duplicate_count int,
+        silver_daily_future_past_count int,
+        silver_daily_negative_count int,
         created_at timestamp default current_date,
         primary key(ingestion_id,table_name)
         ) ;
@@ -190,6 +201,7 @@ BEGIN
         silver_daily_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_indexing_time INTERVAL,
         silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
@@ -197,6 +209,11 @@ BEGIN
         bronze_daily_indexing_time INTERVAL,
         bronze_main_copy_executing_time INTERVAL,
         total_bronze_process_executing_time INTERVAL,
+        silver_daily_null_pk_count int,
+        silver_daily_required_pk_count int,
+        silver_daily_duplicate_count int,
+        silver_daily_future_past_count int,
+        silver_daily_negative_count int,
         created_at timestamp default current_date,
         primary key(ingestion_id,table_name)
         ) ;
@@ -210,6 +227,7 @@ BEGIN
         silver_daily_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_indexing_time INTERVAL,
         silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
@@ -217,6 +235,11 @@ BEGIN
         bronze_daily_indexing_time INTERVAL,
         bronze_main_copy_executing_time INTERVAL,
         total_bronze_process_executing_time INTERVAL,
+        silver_daily_null_pk_count int,
+        silver_daily_required_pk_count int,
+        silver_daily_duplicate_count int,
+        silver_daily_future_past_count int,
+        silver_daily_negative_count int,
         created_at timestamp default current_date,
         primary key(ingestion_id,table_name)
         ) ;
@@ -230,6 +253,7 @@ BEGIN
         silver_daily_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_indexing_time INTERVAL,
         silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
@@ -237,6 +261,11 @@ BEGIN
         bronze_daily_indexing_time INTERVAL,
         bronze_main_copy_executing_time INTERVAL,
         total_bronze_process_executing_time INTERVAL,
+        silver_daily_null_pk_count int,
+        silver_daily_required_pk_count int,
+        silver_daily_duplicate_count int,
+        silver_daily_future_past_count int,
+        silver_daily_negative_count int,
         created_at timestamp default current_date,
         primary key(ingestion_id,table_name)
         ) ;
@@ -250,6 +279,7 @@ BEGIN
         silver_daily_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_indexing_time INTERVAL,
         silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
@@ -257,6 +287,11 @@ BEGIN
         bronze_daily_indexing_time INTERVAL,
         bronze_main_copy_executing_time INTERVAL,
         total_bronze_process_executing_time INTERVAL,
+        silver_daily_null_pk_count int,
+        silver_daily_required_pk_count int,
+        silver_daily_duplicate_count int,
+        silver_daily_future_past_count int,
+        silver_daily_negative_count int,
         created_at timestamp default current_date,
         primary key(ingestion_id,table_name)
         ) ;
