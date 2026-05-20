@@ -183,6 +183,17 @@ BEGIN
         ) partition by range(payment_date);
 
 
+
+
+        DELETE FROM partman.part_config
+        WHERE parent_table IN (
+        'silver.customers_raw_p',
+        'silver.orders_raw_p',
+        'silver.order_items_raw_p',
+        'silver.payments_raw_p'
+        );
+
+
 end;
 $$;
 
@@ -199,6 +210,61 @@ call silver.create_silver_main_tables();
 ---------------------------------------------------------------------------------------------------------------
 
 
+
+==============================================================
+-- CREATING PGPARTMAN PROCEDURES -- START--
+==============================================================
+
+create or replace procedure silver.pgpartman_silver()
+language plpgsql
+as $$
+begin
+        perform partman.create_parent(
+                p_parent_table => 'silver.customers_raw_p',
+                p_control => 'valid_from',
+                p_interval => '18 months',
+                p_start_partition => '2013-10-01',
+                p_premake         => 1
+        );
+
+
+        perform partman.create_parent(
+                p_parent_table => 'silver.orders_raw_p',
+                p_control => 'order_date',
+                p_interval => '12 months',
+                p_start_partition => '2019-04-01',
+                p_premake         => 1
+        );
+
+
+        perform partman.create_parent(
+                p_parent_table => 'silver.order_items_raw_p',
+                p_control => 'order_date',
+                p_interval => '12 months',
+                p_start_partition => '2019-04-01',
+                p_premake         => 1
+        );
+
+
+        perform partman.create_parent(
+                p_parent_table => 'silver.payments_raw_p',
+                p_control => 'payment_date',
+                p_interval => '12 months',
+                p_start_partition => '2019-04-01',
+                p_premake         => 1
+        );
+end;
+$$;
+
+call silver.pgpartman_silver();
+
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------------------
 
 
 =================================

@@ -27,8 +27,30 @@ call bronze.create_bronze_daily_payments_index();
 
 
 call bronze.create_bronze_daily_products_index();
-call silver.ingest_silver_daily_products()
+call silver.ingest_silver_daily_products();
+call silver.ingest_silver_raw_products();
+
 
 call bronze.create_bronze_daily_customers_index();
-call silver.ingest_silver_daily_customers()
+call silver.ingest_silver_daily_customers();
+call silver.ingest_silver_raw_customers();
+
+
+
+call bronze.create_bronze_daily_payments_index();
+call silver.ingest_silver_daily_payments();
+call silver.ingest_silver_raw_payments();
+
+
+
+call bronze.create_bronze_daily_order_items_index();
+call silver.ingest_silver_daily_order_items();
+call silver.ingest_silver_raw_order_items();
+
+
+call bronze.create_bronze_daily_main_orders_index();
+call silver.ingest_silver_daily_main_orders();
+call silver.ingest_silver_raw_main_orders();
+
+
 

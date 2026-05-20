@@ -38,7 +38,7 @@ END
 
 
 ===============================
-=============================== --PARALLEL IMPORT SILVER--
+=============================== --PARALLEL IMPORT SILVER DAILY TABLES + VALIDATION--
 ===============================
 
 
@@ -107,57 +107,7 @@ end;
 $$;
 
 
-/*Payments -- main silver table upsert*/
-create or replace procedure silver.ingest_silver_raw_payments()
-language PLPGSQL
-as $$
-DECLARE
-local_rows_updated_count int;
-local_rows_inserted_count int;
-first_time timestamp;
-update_time interval;
-insert_time interval;
-BEGIN
-        first_time := clock_timestamp();
 
-        update silver.payments p
-        SET
-        payment_date = pd.payment_date,
-        method = pd.method,
-        order_date = pd.order_date,
-        total = pd.total,
-        created_at_bronze = pd.created_at_bronze,
-        created_at_silver = current_timestamp
-        FROM silver.payments_daily pd
-        WHERE p.payment_id = pd.payment_id AND p.order_id = pd.order_id
-        and (p.payment_date,p.method,p.order_date,p.total) is distinct from
-        (pd.payment_date,pd.method,pd.order_date,pd.total);
-
-        get DIAGNOSTICS local_rows_updated_count = ROW_COUNT;
-        update_time := clock_timestamp() - first_time;
-
-        first_time := clock_timestamp();
-
-        insert into silver.payments(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze,created_at_silver)
-        select a.payment_id,a.payment_date,a.method,a.order_id,a.order_date,a.total,a.created_at_bronze,current_timestamp
-        from silver.payments_daily a
-        where not exists (select 1 from silver.payments pd
-        where pd.payment_id=a.payment_id and pd.order_id=a.order_id);
-
-        get DIAGNOSTICS local_rows_inserted_count = ROW_COUNT;
-        insert_time := clock_timestamp() - first_time;
-
-        update operational_log.payments_log
-        set silver_main_update_executing_time = update_time,
-        silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = (select count(*) from silver.payments)
-        where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
-
-        RAISE NOTICE 'Data loaded to [payments] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
-
-        drop table bronze.payments_raw_daily;
-END;
-$$;
 
 
 /*Order_items -- daily load*/
@@ -202,6 +152,7 @@ BEGIN
 
                 pk_executing_time := clock_timestamp() - first_time;
 
+
                 select count(order_id) into rows_count from silver.order_items_daily;
 
                 update operational_log.order_items_log
@@ -219,60 +170,7 @@ $$;
 
 
 /*Order_items -- main silver table upsert*/
-create or replace procedure silver.ingest_silver_raw_order_items()
-language PLPGSQL
-as $$
-DECLARE
-local_rows_updated_count int;
-local_rows_inserted_count int;
-first_time timestamp;
-update_time interval;
-insert_time interval;
-BEGIN
-        if not exists(select 1 from pg_constraint where conname='order_product_pk')
-        then
-                alter table silver.order_items
-                add constraint order_product_pk primary key (order_id, product_id);
-        end if;
 
-        first_time := clock_timestamp();
-
-        update silver.order_items a
-        SET
-        quantity = b.quantity,
-        unit_price = b.unit_price,
-        total = b.total,
-        created_at_bronze = b.created_at_bronze,
-        created_at_silver = current_timestamp
-        from silver.order_items_daily b
-        where a.order_id = b.order_id and a.product_id = b.product_id
-        and (a.quantity,a.unit_price,a.total) is distinct from (b.quantity,b.unit_price,b.total);
-
-        get diagnostics local_rows_updated_count = row_count;
-        update_time := clock_timestamp() - first_time;
-
-        first_time := clock_timestamp();
-
-        insert into silver.order_items(order_id,product_id,quantity,unit_price,total,created_at_bronze,created_at_silver)
-        select order_id,product_id,quantity,unit_price,total,created_at_bronze,current_timestamp
-        from silver.order_items_daily a
-        where not exists (select 1 from silver.order_items o
-        where o.order_id=a.order_id and o.product_id=a.product_id);
-
-        get diagnostics local_rows_inserted_count = row_count;
-        insert_time := clock_timestamp() - first_time;
-
-        update operational_log.order_items_log
-        set silver_main_update_executing_time = update_time,
-        silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = (select count(*) from silver.order_items)
-        where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
-
-        RAISE NOTICE 'Data loaded to [order_items] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
-
-        drop table bronze.order_items_raw_daily;
-END;
-$$;
 
 
 /*Orders -- daily load*/
@@ -334,60 +232,6 @@ end;
 $$;
 
 
-/*Orders -- main silver table upsert*/
-create or replace procedure silver.ingest_silver_raw_orders()
-language PLPGSQL
-as $$
-DECLARE
-local_rows_updated_count int;
-local_rows_inserted_count int;
-first_time timestamp;
-update_time interval;
-insert_time interval;
-BEGIN
-        if not exists(select 1 from pg_constraint where conname='order_customer_pk')
-        then
-                alter table silver.orders
-                add constraint order_customer_pk primary key (order_id, customer_id);
-        end if;
-
-        first_time := clock_timestamp();
-
-        update silver.orders a
-        SET
-        status = b.status,
-        order_date = b.order_date,
-        created_at_bronze = b.created_at_bronze,
-        created_at_silver = current_timestamp
-        from silver.orders_daily b
-        where a.order_id = b.order_id and a.customer_id = b.customer_id
-        and (a.status,a.order_date) is distinct from (b.status,b.order_date);
-
-        get diagnostics local_rows_updated_count = row_count;
-        update_time := clock_timestamp() - first_time;
-
-        first_time := clock_timestamp();
-
-        insert into silver.orders(order_id,customer_id,order_date,status,created_at_bronze,created_at_silver)
-        select order_id,customer_id,order_date,status,created_at_bronze,current_timestamp
-        from silver.orders_daily a
-        where not exists (select 1 from silver.orders o
-        where o.order_id=a.order_id and o.customer_id=a.customer_id);
-
-        get diagnostics local_rows_inserted_count = row_count;
-        insert_time := clock_timestamp() - first_time;
-
-        update operational_log.orders_log
-        set silver_main_update_executing_time = update_time,
-        silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = (select count(*) from silver.orders)
-        where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
-
-        RAISE NOTICE 'Data loaded to [orders] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
-
-        drop table bronze.orders_raw_daily;
-END;
-$$;
 
 
 /*Customers -- daily load*/
@@ -448,69 +292,6 @@ end;
 $$;
 
 
-/*Customers -- main silver table upsert (SCD Type 2)*/
-create or replace procedure silver.ingest_silver_raw_customers()
-language PLPGSQL
-as $$
-DECLARE
-local_rows_updated_count int;
-local_rows_inserted_count int;
-first_time timestamp;
-update_time interval;
-insert_time interval;
-BEGIN
-        if not exists(select 1 from pg_constraint where conname='customer_id_pk')
-        then
-                alter table silver.customers
-                add constraint customer_id_pk primary key (customer_id,valid_from);
-        end if;
-
-        if not exists(select 1 from pg_indexes where indexname='partial_index_customer')
-        then
-                create unique index partial_index_customer on silver.customers(customer_id)
-                where is_valid=true;
-        end if;
-
-        first_time := clock_timestamp();
-
-        update silver.customers a
-        set valid_to=current_date - interval '1 day',
-        is_valid=false
-        from silver.customers_daily b
-        WHERE a.customer_id=b.customer_id
-        and a.is_valid=true
-        and (a.name,a.signup_date) is distinct from (b.name,b.signup_date);
-
-        get diagnostics local_rows_updated_count = row_count;
-        update_time := clock_timestamp() - first_time;
-
-        first_time := clock_timestamp();
-
-        insert into silver.customers(customer_id,name,signup_date,created_at_bronze,
-        created_at_silver,valid_from,valid_to,is_valid)
-        select customer_id,name,signup_date,created_at_bronze,
-        current_timestamp,current_date,'2050-01-01',true
-        from silver.customers_daily
-        where not exists(
-        select 1 from silver.customers where
-        silver.customers.customer_id=silver.customers_daily.customer_id
-        and silver.customers.is_valid=true
-        );
-
-        get diagnostics local_rows_inserted_count = row_count;
-        insert_time := clock_timestamp() - first_time;
-
-        update operational_log.customers_log
-        set silver_main_update_executing_time = update_time,
-        silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = (select count(*) from silver.customers where is_valid=true)
-        where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
-
-        RAISE NOTICE 'Data loaded to [customers] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
-
-        drop table bronze.customers_raw_daily;
-END;
-$$;
 
 
 /*Products -- daily load*/
@@ -570,26 +351,300 @@ end;
 $$;
 
 
-/*Products -- main silver table upsert*/
-create or replace procedure silver.ingest_silver_raw_products()
+
+
+
+
+
+show data_directory;
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM bronze.order_items_raw_daily;
+
+
+
+
+----------------------------------------------------------------------------------------------------------------
+
+==============================================================
+-- IMPORT TO SILVER RAW FROM SILVER DAILY -- START
+==============================================================
+
+
+
+
+/*Payments -- main silver table upsert*/
+create or replace procedure silver.ingest_silver_raw_payments()
 language PLPGSQL
 as $$
 DECLARE
+local_ingestion_id int;
 local_rows_updated_count int;
 local_rows_inserted_count int;
 first_time timestamp;
 update_time interval;
 insert_time interval;
 BEGIN
-        if not exists(select 1 from pg_constraint where conname='product_pk')
-        then
-                alter table silver.products
-                add constraint product_pk primary key (product_id);
-        end if;
+
+        local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+        first_time := clock_timestamp();
+
+        update silver.payments_raw_p p
+        SET
+        payment_date = pd.payment_date,
+        method = pd.method,
+        order_date = pd.order_date,
+        total = pd.total,
+        created_at_bronze = pd.created_at_bronze,
+        created_at_silver = current_timestamp
+        FROM silver.payments_daily pd
+        WHERE p.payment_id = pd.payment_id AND p.order_id = pd.order_id
+        and (p.payment_date,p.method,p.order_date,p.total) is distinct from
+        (pd.payment_date,pd.method,pd.order_date,pd.total);
+
+        get DIAGNOSTICS local_rows_updated_count = ROW_COUNT;
+        update_time := clock_timestamp() - first_time;
 
         first_time := clock_timestamp();
 
-        update silver.products a
+        insert into silver.payments_raw_p(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze)
+        select a.payment_id,a.payment_date,a.method,a.order_id,a.order_date,a.total,a.created_at_bronze
+        from silver.payments_daily a
+        where not exists (select 1 from silver.payments_raw_p pd
+        where pd.payment_id=a.payment_id and pd.order_id=a.order_id);
+
+        get DIAGNOSTICS local_rows_inserted_count = ROW_COUNT;
+        insert_time := clock_timestamp() - first_time;
+
+        update operational_log.payments_log
+        set silver_main_update_executing_time = update_time,
+        silver_main_insert_executing_time = insert_time,
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
+        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.payments_log where ingestion_id = local_ingestion_id)
+        where ingestion_id = local_ingestion_id;
+
+        RAISE NOTICE 'Data loaded to [payments] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
+
+        --drop table bronze.payments_raw_daily;
+END;
+$$;
+
+
+call silver.ingest_silver_raw_payments();
+
+
+
+
+create or replace procedure silver.ingest_silver_raw_order_items()
+language PLPGSQL
+as $$
+DECLARE
+local_ingestion_id int;
+local_rows_updated_count int;
+local_rows_inserted_count int;
+first_time timestamp;
+update_time interval;
+insert_time interval;
+BEGIN
+
+        raise notice 'Adding new col to order_items';
+        CREATE TEMP TABLE order_items_temp AS
+        SELECT  a.order_id,
+                a.product_id,
+                a.quantity,
+                a.unit_price,
+                a.total,
+                b.order_date,           -- only needed here, doesn't pollute upstream
+                a.created_at_bronze,
+                a.source_file_id
+        FROM silver.order_items_daily a
+        LEFT JOIN silver.orders_daily b ON a.order_id = b.order_id;
+
+        -- index it
+        CREATE INDEX ON order_items_temp(order_id, product_id);
+        raise notice 'Done adding';
+
+
+        local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+        first_time := clock_timestamp();
+
+        update silver.order_items_raw_p a
+        SET
+        quantity = b.quantity,
+        unit_price = b.unit_price,
+        total = b.total,
+        created_at_bronze = b.created_at_bronze,
+        created_at_silver = current_timestamp
+        from order_items_temp b
+        where a.order_id = b.order_id and a.product_id = b.product_id
+        and (a.quantity,a.unit_price,a.total) is distinct from (b.quantity,b.unit_price,b.total);
+
+        get diagnostics local_rows_updated_count = row_count;
+        update_time := clock_timestamp() - first_time;
+
+        first_time := clock_timestamp();
+
+        insert into silver.order_items_raw_p(order_id,product_id,quantity,unit_price,total,order_date,created_at_bronze)
+        select order_id,product_id,quantity,unit_price,total,order_date,created_at_bronze
+        from order_items_temp a
+        where order_date is not null
+        and not exists (select 1 from silver.order_items_raw_p o
+        where o.order_id=a.order_id and o.product_id=a.product_id);
+
+        get diagnostics local_rows_inserted_count = row_count;
+        insert_time := clock_timestamp() - first_time;
+
+        update operational_log.order_items_log
+        set silver_main_update_executing_time = update_time,
+        silver_main_insert_executing_time = insert_time,
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
+        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.order_items_log where ingestion_id = local_ingestion_id)
+        where ingestion_id = local_ingestion_id;
+
+        RAISE NOTICE 'Data loaded to [order_items] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
+
+        --drop table bronze.order_items_raw_daily;
+        drop table order_items_temp;
+END;
+$$;
+
+
+
+
+/*Orders -- main silver table upsert*/
+create or replace procedure silver.ingest_silver_raw_orders()
+language PLPGSQL
+as $$
+DECLARE
+local_ingestion_id int;
+local_rows_updated_count int;
+local_rows_inserted_count int;
+first_time timestamp;
+update_time interval;
+insert_time interval;
+BEGIN
+        local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+        first_time := clock_timestamp();
+
+        update silver.orders_raw_p a
+        SET
+        status = b.status,
+        order_date = b.order_date,
+        created_at_bronze = b.created_at_bronze,
+        created_at_silver = current_timestamp
+        from silver.orders_daily b
+        where a.order_id = b.order_id and a.customer_id = b.customer_id
+        and (a.status,a.order_date) is distinct from (b.status,b.order_date);
+
+        get diagnostics local_rows_updated_count = row_count;
+        update_time := clock_timestamp() - first_time;
+
+        first_time := clock_timestamp();
+
+        insert into silver.orders_raw_p(order_id,customer_id,order_date,status,created_at_bronze)
+        select order_id,customer_id,order_date,status,created_at_bronze
+        from silver.orders_daily a
+        where order_date is not null
+        and not exists (select 1 from silver.orders_raw_p o
+        where o.order_id=a.order_id);
+
+        get diagnostics local_rows_inserted_count = row_count;
+        insert_time := clock_timestamp() - first_time;
+
+        update operational_log.orders_log
+        set silver_main_update_executing_time = update_time,
+        silver_main_insert_executing_time = insert_time,
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count
+        where ingestion_id = local_ingestion_id;
+
+        RAISE NOTICE 'Data loaded to [orders] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
+
+        drop table bronze.orders_raw_daily;
+END;
+$$;
+
+
+
+
+
+/*Customers -- main silver table upsert (SCD Type 2)*/
+create or replace procedure silver.ingest_silver_raw_customers()
+language PLPGSQL
+as $$
+DECLARE
+local_ingestion_id int;
+local_rows_updated_count int;
+local_rows_inserted_count int;
+first_time timestamp;
+update_time interval;
+insert_time interval;
+BEGIN
+        local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+        first_time := clock_timestamp();
+
+        update silver.customers_raw_p a
+        set valid_to=current_date - interval '1 day',
+        is_valid=false
+        from silver.customers_daily b
+        WHERE a.customer_id=b.customer_id
+        and a.is_valid=true
+        and (a.name,a.signup_date) is distinct from (b.name,b.signup_date);
+
+        get diagnostics local_rows_updated_count = row_count;
+        update_time := clock_timestamp() - first_time;
+
+        first_time := clock_timestamp();
+
+        insert into silver.customers_raw_p(customer_id,name,signup_date,created_at_bronze,
+        created_at_silver,valid_from,valid_to,is_valid)
+        select customer_id,name,signup_date,created_at_bronze,
+        current_timestamp,current_date,'2050-01-01',true
+        from silver.customers_daily
+        where not exists(
+        select 1 from silver.customers_raw_p where
+        silver.customers_raw_p.customer_id=silver.customers_daily.customer_id
+        and silver.customers_raw_p.is_valid=true
+        );
+
+        get diagnostics local_rows_inserted_count = row_count;
+        insert_time := clock_timestamp() - first_time;
+
+        update operational_log.customers_log
+        set silver_main_update_executing_time = update_time,
+        silver_main_insert_executing_time = insert_time,
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count
+        where ingestion_id = local_ingestion_id;
+
+        RAISE NOTICE 'Data loaded to [customers] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
+
+        drop table bronze.customers_raw_daily;
+END;
+$$;
+
+
+
+
+
+
+
+
+/*Products -- main silver table upsert*/
+create or replace procedure silver.ingest_silver_raw_products()
+language PLPGSQL
+as $$
+DECLARE
+local_ingestion_id int;
+local_rows_updated_count int;
+local_rows_inserted_count int;
+first_time timestamp;
+update_time interval;
+insert_time interval;
+BEGIN
+        local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+        first_time := clock_timestamp();
+
+        update silver.products_raw a
         SET
         name = b.name,
         category = b.category,
@@ -605,10 +660,10 @@ BEGIN
 
         first_time := clock_timestamp();
 
-        insert into silver.products(product_id,name,category,price,created_at_bronze,created_at_silver)
-        select product_id,name,category,price,created_at_bronze,current_timestamp
+        insert into silver.products_raw(product_id,name,category,price,created_at_bronze)
+        select product_id,name,category,price,created_at_bronze
         from silver.products_daily a
-        where not exists (select 1 from silver.products p
+        where not exists (select 1 from silver.products_raw p
         where p.product_id=a.product_id);
 
         get diagnostics local_rows_inserted_count = row_count;
@@ -617,18 +672,11 @@ BEGIN
         update operational_log.products_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = (select count(*) from silver.products)
-        where ingestion_id = (select ingestion_id from operational_log.ingestion_id);
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count
+        where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [products] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
 
         drop table bronze.products_raw_daily;
 END;
 $$;
-
-
-show data_directory;
-
-EXPLAIN (ANALYZE, BUFFERS)
-SELECT *
-FROM bronze.order_items_raw_daily;
