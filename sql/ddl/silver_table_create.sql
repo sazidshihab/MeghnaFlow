@@ -109,7 +109,7 @@ BEGIN
 
 
         drop table if exists silver.customers_raw_p;
-        create table silver.customers_raw_p (
+        create unlogged table silver.customers_raw_p (
                 customer_id varchar(255),
                 name varchar(255),
                 signup_date date ,
@@ -126,7 +126,7 @@ BEGIN
 
 
         drop table if exists silver.products_raw;
-        create table silver.products_raw (
+        create unlogged table silver.products_raw (
                 product_id varchar(100) ,
                 name VARCHAR(255),
                 category VARCHAR(255),
@@ -138,9 +138,16 @@ BEGIN
         );
 
 
+        drop table if exists silver.order_date_lookup;
+        create table silver.order_date_lookup (
+                order_id   varchar(255) primary key,
+                order_date date not null
+        );
+
+
 
         drop table if exists silver.orders_raw_p cascade;
-        create table silver.orders_raw_p (
+        create unlogged table silver.orders_raw_p (
                 order_id VARCHAR(255) ,
                 customer_id VARCHAR(255),
                 order_date date not null,
@@ -153,7 +160,7 @@ BEGIN
 
 
         drop table if exists silver.order_items_raw_p cascade;
-        create table silver.order_items_raw_p (
+        create unlogged table silver.order_items_raw_p (
                 order_id VARCHAR(255) ,
                 product_id VARCHAR(255) ,
                 quantity numeric(10,2),
@@ -169,7 +176,7 @@ BEGIN
 
 
         drop table if exists silver.payments_raw_p cascade;
-        create table silver.payments_raw_p(
+        create unlogged table silver.payments_raw_p(
                 payment_id varchar(255) ,
                 payment_date date not null,
                 method VARCHAR(50),
@@ -267,6 +274,43 @@ call silver.pgpartman_silver();
 ----------------------------------------------------------------------------------------------------------------
 
 
+
+
+
+===============================================
+--TURN OFF AUTOVACUUM/ANALYZE OFF FOR BRONZE RAW TABLE -- END
+===============================================
+
+
+
+--------------------------------------------------------------------------------------------------------
+
+
+
+================================================
+--TURN OFF AUTOVACUUM/ANALYZE OFF FOR SILVER DAILY TABLE -- START
+=================================================
+
+create or replace procedure silver.silver_daily_autovacuum_off()
+language plpgsql
+as $$
+BEGIN
+        ALTER TABLE silver.customers_daily  SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+        ALTER TABLE silver.orders_daily     SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+        ALTER TABLE silver.order_items_daily SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+        ALTER TABLE silver.products_daily   SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+        ALTER TABLE silver.payments_daily   SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+end;
+$$;      
+call  silver.silver_daily_autovacuum_off();
+
+
+
+
+
+
+
+
 =================================
 --DROPING SILVER DAILY TABLES-- START--
 ================================
@@ -274,20 +318,7 @@ call silver.pgpartman_silver();
 
 
 
-create or replace procedure silver.silver_daily_table_drop()
-language PLPGSQL
-as $$
-BEGIN
-        drop table if exists silver.customers_daily;
-        drop table if exists silver.products_daily;
-        drop table if exists silver.orders_daily;
-        drop table if exists silver.order_items_daily;
-        drop table if exists silver.payments_daily;
 
-END;
-$$;
-
-call silver.silver_daily_table_drop();
 
 
 =================================

@@ -53,8 +53,7 @@ pk_executing_time interval;
 rows_count int;
 BEGIN
 
-        if exists(select 1 from information_schema.tables where table_name='payments_raw_daily' and table_schema='bronze')
-        then
+
                 raise notice 'started,,,,';
                 first_time := clock_timestamp();
 
@@ -99,9 +98,7 @@ BEGIN
 
                 RAISE NOTICE 'PK task completed [payments_daily] in %.', clock_timestamp()-first_time;
 
-        else
-                RAISE NOTICE 'No new data to load for [payments]...';
-        end if;
+
 
 end;
 $$;
@@ -120,8 +117,7 @@ insert_time interval;
 pk_executing_time interval;
 rows_count int;
 BEGIN
-        if exists(select 1 from information_schema.tables where table_name='order_items_raw_daily' and table_schema='bronze')
-        then
+
                 raise notice 'started [order_items_daily],,,,';
                 first_time := clock_timestamp();
 
@@ -162,9 +158,6 @@ BEGIN
 
                 RAISE NOTICE 'PK task completed [order_items_daily] in %.', clock_timestamp()-first_time;
 
-        else
-                RAISE NOTICE 'No new data to load for [order_items]...';
-        end if;
 end;
 $$;
 
@@ -183,8 +176,7 @@ insert_time interval;
 pk_executing_time interval;
 rows_count int;
 BEGIN
-        if exists(select 1 from information_schema.tables where table_name='orders_raw_daily' and table_schema='bronze')
-        then
+
                 raise notice 'started [orders_daily],,,,';
                 first_time := clock_timestamp();
 
@@ -225,9 +217,7 @@ BEGIN
 
                 RAISE NOTICE 'PK task completed [orders_daily] in %.', clock_timestamp()-first_time;
 
-        else
-                RAISE NOTICE 'No new data to load for [orders]...';
-        end if;
+
 end;
 $$;
 
@@ -244,8 +234,7 @@ insert_time interval;
 pk_executing_time interval;
 rows_count int;
 BEGIN
-        if exists(select 1 from information_schema.tables where table_name='customers_raw_daily' and table_schema='bronze')
-        then
+ 
                 raise notice 'started [customers_daily],,,,';
                 first_time := clock_timestamp();
 
@@ -285,9 +274,6 @@ BEGIN
 
                 RAISE NOTICE 'PK task completed [customers_daily] in %.', clock_timestamp()-first_time;
 
-        else
-                RAISE NOTICE 'No new data to load for [customers]...';
-        end if;
 end;
 $$;
 
@@ -304,8 +290,7 @@ insert_time interval;
 pk_executing_time interval;
 rows_count int;
 BEGIN
-        if exists(select 1 from information_schema.tables where table_name='products_raw_daily' and table_schema='bronze')
-        then
+
                 raise notice 'started [products_daily],,,,';
                 first_time := clock_timestamp();
 
@@ -344,9 +329,6 @@ BEGIN
 
                 RAISE NOTICE 'PK task completed [products_daily] in %.', clock_timestamp()-first_time;
 
-        else
-                RAISE NOTICE 'No new data to load for [products]...';
-        end if;
 end;
 $$;
 
@@ -421,7 +403,7 @@ BEGIN
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
         silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
-        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.payments_log where ingestion_id = local_ingestion_id)
+        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.payments_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [payments] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
@@ -447,25 +429,8 @@ first_time timestamp;
 update_time interval;
 insert_time interval;
 BEGIN
-
-        raise notice 'Adding new col to order_items';
-        CREATE TEMP TABLE order_items_temp AS
-        SELECT  a.order_id,
-                a.product_id,
-                a.quantity,
-                a.unit_price,
-                a.total,
-                b.order_date,           -- only needed here, doesn't pollute upstream
-                a.created_at_bronze,
-                a.source_file_id
-        FROM silver.order_items_daily a
-        LEFT JOIN silver.orders_daily b ON a.order_id = b.order_id;
-
-        -- index it
-        CREATE INDEX ON order_items_temp(order_id, product_id);
-        raise notice 'Done adding';
-
-
+        SET LOCAL work_mem = '2GB';
+        
         local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
         first_time := clock_timestamp();
 
@@ -476,40 +441,45 @@ BEGIN
         total = b.total,
         created_at_bronze = b.created_at_bronze,
         created_at_silver = current_timestamp
-        from order_items_temp b
-        where a.order_id = b.order_id and a.product_id = b.product_id
+        from silver.order_items_daily b
+        where a.order_id = b.order_id
+        and a.product_id = b.product_id
         and (a.quantity,a.unit_price,a.total) is distinct from (b.quantity,b.unit_price,b.total);
 
         get diagnostics local_rows_updated_count = row_count;
         update_time := clock_timestamp() - first_time;
+        raise notice 'update done';
 
         first_time := clock_timestamp();
 
         insert into silver.order_items_raw_p(order_id,product_id,quantity,unit_price,total,order_date,created_at_bronze)
-        select order_id,product_id,quantity,unit_price,total,order_date,created_at_bronze
-        from order_items_temp a
-        where order_date is not null
-        and not exists (select 1 from silver.order_items_raw_p o
-        where o.order_id=a.order_id and o.product_id=a.product_id);
+        select a.order_id, a.product_id, a.quantity, a.unit_price, a.total,
+               l.order_date,
+               a.created_at_bronze
+        from silver.order_items_daily a
+        join silver.order_date_lookup l on a.order_id = l.order_id
+        where not exists (select 1 from silver.order_items_raw_p r
+        where r.order_id=a.order_id and r.product_id=a.product_id);
 
         get diagnostics local_rows_inserted_count = row_count;
         insert_time := clock_timestamp() - first_time;
+
+        raise notice 'insert done';
 
         update operational_log.order_items_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
         silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
-        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.order_items_log where ingestion_id = local_ingestion_id)
+        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.order_items_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [order_items] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
 
         --drop table bronze.order_items_raw_daily;
-        drop table order_items_temp;
 END;
 $$;
 
-
+call silver.ingest_silver_raw_order_items();
 
 
 /*Orders -- main silver table upsert*/
@@ -542,28 +512,40 @@ BEGIN
 
         first_time := clock_timestamp();
 
-        insert into silver.orders_raw_p(order_id,customer_id,order_date,status,created_at_bronze)
-        select order_id,customer_id,order_date,status,created_at_bronze
-        from silver.orders_daily a
-        where order_date is not null
-        and not exists (select 1 from silver.orders_raw_p o
-        where o.order_id=a.order_id);
+        with inserted_rows as (
+            insert into silver.orders_raw_p(order_id,customer_id,order_date,status,created_at_bronze)
+            select order_id,customer_id,order_date,status,created_at_bronze
+            from silver.orders_daily a
+            where order_date is not null
+            and not exists (select 1 from silver.orders_raw_p o
+            where o.order_id=a.order_id)
+            returning 1
+        )
+        select count(*) into local_rows_inserted_count from inserted_rows;
 
-        get diagnostics local_rows_inserted_count = row_count;
         insert_time := clock_timestamp() - first_time;
+
+        insert into silver.order_date_lookup(order_id, order_date)
+        select order_id, order_date
+        from silver.orders_daily
+        where order_date is not null
+        on conflict (order_id) do update
+        set order_date = excluded.order_date;
 
         update operational_log.orders_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
+        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.orders_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [orders] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
 
-        drop table bronze.orders_raw_daily;
+        --drop table bronze.orders_raw_daily;
 END;
 $$;
 
+call silver.ingest_silver_raw_orders();
 
 
 
@@ -613,15 +595,17 @@ BEGIN
         update operational_log.customers_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
+        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.customers_log where ingestion_id = local_ingestion_id)
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [customers] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
 
-        drop table bronze.customers_raw_daily;
+        --drop table bronze.customers_raw_daily;
 END;
 $$;
 
+call silver.ingest_silver_raw_customers();
 
 
 
@@ -672,7 +656,8 @@ BEGIN
         update operational_log.products_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count
+        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
+        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.products_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [products] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
@@ -680,3 +665,9 @@ BEGIN
         drop table bronze.products_raw_daily;
 END;
 $$;
+
+call silver.ingest_silver_raw_products();
+
+
+
+

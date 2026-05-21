@@ -194,14 +194,16 @@ create or replace procedure bronze.bronze_raw_autovacuum_off()
 language plpgsql
 as $$
 BEGIN
-        ALTER TABLE bronze.customers_raw  SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
-        ALTER TABLE bronze.orders_raw     SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
-        ALTER TABLE bronze.order_items_raw SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
-        ALTER TABLE bronze.products_raw   SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
-        ALTER TABLE bronze.payments_raw   SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+        ALTER TABLE bronze.customers_raw  SET (autovacuum_enabled = false);
+        ALTER TABLE bronze.orders_raw     SET (autovacuum_enabled = false);
+        ALTER TABLE bronze.order_items_raw SET (autovacuum_enabled = false);
+        ALTER TABLE bronze.products_raw   SET (autovacuum_enabled = false);
+        ALTER TABLE bronze.payments_raw   SET (autovacuum_enabled = false);
 end;
 $$;      
 call  bronze.bronze_raw_autovacuum_off(); 
+
+
 
 
 ===============================================

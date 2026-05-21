@@ -2,7 +2,6 @@
 import pandas as pd
 import numpy as np
 from faker import Faker
-from datetime import timedelta
 
 
 fake = Faker()
@@ -95,17 +94,18 @@ order_items["total"] = order_items["quantity"] * order_items["unit_price"]
 # -----------------------
 # 5. PAYMENTS
 # -----------------------
-payments = order_items.groupby("order_id")["total"].sum().reset_index()
+payments_base = order_items.groupby("order_id")["total"].sum().reset_index()
+payments_base = payments_base.merge(orders[["order_id", "order_date"]], on="order_id")
 
-payments["payment_id"] = [f"PAY{i}" for i in range(len(payments))]
-
-payments = payments.merge(orders[["order_id", "order_date"]], on="order_id")
-
-payments["payment_date"] = payments["order_date"] + timedelta(days=1)
-
-payments["method"] = np.random.choice(
-    ["card", "Card", "cash", "CASH"], len(payments)
-)
+n = len(payments_base)
+payments = pd.DataFrame({
+    "payment_id":   [f"PAY{i}" for i in range(n)],
+    "method":       np.random.choice(["card", "Card", "cash", "CASH"], n),
+    "order_id":     payments_base["order_id"].values,
+    "order_date":   payments_base["order_date"].values,
+    "total":        payments_base["total"].values,
+    "payment_date": payments_base["order_date"].values + pd.Timedelta(days=1),
+})
 
 # introduce messy payments
 mask = np.random.rand(len(payments)) < 0.03
