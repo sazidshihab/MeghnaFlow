@@ -573,7 +573,7 @@ BEGIN
         and a.is_valid=true
         and (a.name,a.signup_date) is distinct from (b.name,b.signup_date);
 
-        get diagnostics local_rows_updated_count = row_count;
+ 
         update_time := clock_timestamp() - first_time;
 
         first_time := clock_timestamp();
@@ -587,7 +587,14 @@ BEGIN
         select 1 from silver.customers_raw_p where
         silver.customers_raw_p.customer_id=silver.customers_daily.customer_id
         and silver.customers_raw_p.is_valid=true
-        );
+        )
+        on conflict (customer_id,valid_from) do update
+        set name              = excluded.name,
+            signup_date       = excluded.signup_date,
+            created_at_bronze = excluded.created_at_bronze,
+            created_at_silver = excluded.created_at_silver,
+            valid_to          = excluded.valid_to,
+            is_valid          = excluded.is_valid;
 
         get diagnostics local_rows_inserted_count = row_count;
         insert_time := clock_timestamp() - first_time;
@@ -595,11 +602,11 @@ BEGIN
         update operational_log.customers_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
+        silver_main_row_count = local_rows_inserted_count,
         total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.customers_log where ingestion_id = local_ingestion_id)
         where ingestion_id = local_ingestion_id;
 
-        RAISE NOTICE 'Data loaded to [customers] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
+        RAISE NOTICE 'Data loaded to [customers] main table. Historized: %, New versions inserted: %', local_rows_updated_count, local_rows_inserted_count;
 
         --drop table bronze.customers_raw_daily;
 END;
