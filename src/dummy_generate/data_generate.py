@@ -9,9 +9,9 @@ fake = Faker()
 # -----------------------
 # CONFIG (adjust size)
 # -----------------------
-N_CUSTOMERS = 1000
-N_PRODUCTS = 1000
-N_ORDERS = 2000   # reduce if your Mac struggles
+N_CUSTOMERS = 100000
+N_PRODUCTS = 100000
+N_ORDERS = 200000   # reduce if your Mac struggles
 
 # -----------------------
 # 1. PRODUCTS

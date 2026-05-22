@@ -60,6 +60,8 @@ create table operational_log.bronze_ingest_safetynet(
     bronze_daily_row_count int,
     bronze_main_row_count int,
     silver_daily_row_count int,
+    silver_main_updated_row_count int,
+    silver_main_inserted_row_count int,
     silver_main_row_count int,
     silver_daily_insert_executing_time INTERVAL,
     silver_daily_indexing_time INTERVAL,

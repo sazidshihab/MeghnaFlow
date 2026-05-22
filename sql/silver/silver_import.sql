@@ -1,5 +1,8 @@
 -- Active: 1776668343304@@127.0.0.1@5432@Demo_warehouse@silver
 
+order_date_lookup
+
+
 /*
 Performance tuning : Permanant change.
 */
@@ -208,6 +211,14 @@ BEGIN
 
                 pk_executing_time := clock_timestamp() - first_time;
 
+
+                insert into silver.order_date_lookup(order_id, order_date)
+                select order_id, order_date
+                from silver.orders_daily
+                where order_date is not null
+                on conflict (order_id) do update
+                set order_date = excluded.order_date;
+
                 select count(order_id) into rows_count from silver.orders_daily;
 
                 update operational_log.orders_log
@@ -390,8 +401,8 @@ BEGIN
 
         first_time := clock_timestamp();
 
-        insert into silver.payments_raw_p(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze)
-        select a.payment_id,a.payment_date,a.method,a.order_id,a.order_date,a.total,a.created_at_bronze
+        insert into silver.payments_raw_p(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze,source_file_id)
+        select a.payment_id,a.payment_date,a.method,a.order_id,a.order_date,a.total,a.created_at_bronze,a.source_file_id
         from silver.payments_daily a
         where not exists (select 1 from silver.payments_raw_p pd
         where pd.payment_id=a.payment_id and pd.order_id=a.order_id);
@@ -402,8 +413,10 @@ BEGIN
         update operational_log.payments_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
-        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.payments_log where ingestion_id = local_ingestion_id )
+        silver_main_updated_row_count = COALESCE(local_rows_updated_count, 0),
+        silver_main_inserted_row_count = COALESCE(local_rows_inserted_count, 0),
+        silver_main_row_count = COALESCE(local_rows_updated_count, 0) + COALESCE(local_rows_inserted_count, 0),
+        total_silver_process_executing_time = update_time + insert_time + (select (COALESCE(silver_daily_indexing_time, interval '0') + COALESCE(silver_daily_insert_executing_time, interval '0')) from operational_log.payments_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [payments] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
@@ -452,10 +465,11 @@ BEGIN
 
         first_time := clock_timestamp();
 
-        insert into silver.order_items_raw_p(order_id,product_id,quantity,unit_price,total,order_date,created_at_bronze)
+        insert into silver.order_items_raw_p(order_id,product_id,quantity,unit_price,total,order_date,created_at_bronze,source_file_id)
         select a.order_id, a.product_id, a.quantity, a.unit_price, a.total,
                l.order_date,
-               a.created_at_bronze
+               a.created_at_bronze,
+               a.source_file_id
         from silver.order_items_daily a
         join silver.order_date_lookup l on a.order_id = l.order_id
         where not exists (select 1 from silver.order_items_raw_p r
@@ -469,8 +483,10 @@ BEGIN
         update operational_log.order_items_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
-        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.order_items_log where ingestion_id = local_ingestion_id )
+        silver_main_updated_row_count = COALESCE(local_rows_updated_count, 0),
+        silver_main_inserted_row_count = COALESCE(local_rows_inserted_count, 0),
+        silver_main_row_count = COALESCE(local_rows_updated_count, 0) + COALESCE(local_rows_inserted_count, 0),
+        total_silver_process_executing_time = update_time + insert_time + (select (COALESCE(silver_daily_indexing_time, interval '0') + COALESCE(silver_daily_insert_executing_time, interval '0')) from operational_log.order_items_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [order_items] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
@@ -513,8 +529,8 @@ BEGIN
         first_time := clock_timestamp();
 
         with inserted_rows as (
-            insert into silver.orders_raw_p(order_id,customer_id,order_date,status,created_at_bronze)
-            select order_id,customer_id,order_date,status,created_at_bronze
+            insert into silver.orders_raw_p(order_id,customer_id,order_date,status,created_at_bronze,source_file_id)
+            select order_id,customer_id,order_date,status,created_at_bronze,source_file_id
             from silver.orders_daily a
             where order_date is not null
             and not exists (select 1 from silver.orders_raw_p o
@@ -525,18 +541,15 @@ BEGIN
 
         insert_time := clock_timestamp() - first_time;
 
-        insert into silver.order_date_lookup(order_id, order_date)
-        select order_id, order_date
-        from silver.orders_daily
-        where order_date is not null
-        on conflict (order_id) do update
-        set order_date = excluded.order_date;
+
 
         update operational_log.orders_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
-        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.orders_log where ingestion_id = local_ingestion_id )
+        silver_main_updated_row_count = COALESCE(local_rows_updated_count, 0),
+        silver_main_inserted_row_count = COALESCE(local_rows_inserted_count, 0),
+        silver_main_row_count = COALESCE(local_rows_updated_count, 0) + COALESCE(local_rows_inserted_count, 0),
+        total_silver_process_executing_time = update_time + insert_time + (select (COALESCE(silver_daily_indexing_time, interval '0') + COALESCE(silver_daily_insert_executing_time, interval '0')) from operational_log.orders_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [orders] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
@@ -573,15 +586,15 @@ BEGIN
         and a.is_valid=true
         and (a.name,a.signup_date) is distinct from (b.name,b.signup_date);
 
- 
+        get diagnostics local_rows_updated_count = row_count;
         update_time := clock_timestamp() - first_time;
 
         first_time := clock_timestamp();
 
         insert into silver.customers_raw_p(customer_id,name,signup_date,created_at_bronze,
-        created_at_silver,valid_from,valid_to,is_valid)
+        created_at_silver,valid_from,valid_to,is_valid,source_file_id)
         select customer_id,name,signup_date,created_at_bronze,
-        current_timestamp,current_date,'2050-01-01',true
+        current_timestamp,current_date,'2050-01-01',true,source_file_id
         from silver.customers_daily
         where not exists(
         select 1 from silver.customers_raw_p where
@@ -602,8 +615,10 @@ BEGIN
         update operational_log.customers_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_inserted_count,
-        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.customers_log where ingestion_id = local_ingestion_id)
+        silver_main_updated_row_count = COALESCE(local_rows_updated_count, 0),
+        silver_main_inserted_row_count = COALESCE(local_rows_inserted_count, 0),
+        silver_main_row_count = COALESCE(local_rows_inserted_count, 0),
+        total_silver_process_executing_time = update_time + insert_time + (select (COALESCE(silver_daily_indexing_time, interval '0') + COALESCE(silver_daily_insert_executing_time, interval '0')) from operational_log.customers_log where ingestion_id = local_ingestion_id)
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [customers] main table. Historized: %, New versions inserted: %', local_rows_updated_count, local_rows_inserted_count;
@@ -651,8 +666,8 @@ BEGIN
 
         first_time := clock_timestamp();
 
-        insert into silver.products_raw(product_id,name,category,price,created_at_bronze)
-        select product_id,name,category,price,created_at_bronze
+        insert into silver.products_raw(product_id,name,category,price,created_at_bronze,source_file_id)
+        select product_id,name,category,price,created_at_bronze,source_file_id
         from silver.products_daily a
         where not exists (select 1 from silver.products_raw p
         where p.product_id=a.product_id);
@@ -663,13 +678,15 @@ BEGIN
         update operational_log.products_log
         set silver_main_update_executing_time = update_time,
         silver_main_insert_executing_time = insert_time,
-        silver_main_row_count = local_rows_updated_count + local_rows_inserted_count,
-        total_silver_process_executing_time = update_time + insert_time + (select (silver_daily_indexing_time + silver_daily_insert_executing_time) from operational_log.products_log where ingestion_id = local_ingestion_id )
+        silver_main_updated_row_count = COALESCE(local_rows_updated_count, 0),
+        silver_main_inserted_row_count = COALESCE(local_rows_inserted_count, 0),
+        silver_main_row_count = COALESCE(local_rows_updated_count, 0) + COALESCE(local_rows_inserted_count, 0),
+        total_silver_process_executing_time = update_time + insert_time + (select (COALESCE(silver_daily_indexing_time, interval '0') + COALESCE(silver_daily_insert_executing_time, interval '0')) from operational_log.products_log where ingestion_id = local_ingestion_id )
         where ingestion_id = local_ingestion_id;
 
         RAISE NOTICE 'Data loaded to [products] main table. Updated: %, Inserted: %', local_rows_updated_count, local_rows_inserted_count;
 
-        drop table bronze.products_raw_daily;
+        --drop table bronze.products_raw_daily;
 END;
 $$;
 

@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 import shutil
 import csv
-import threading
+
 
 
 def log(table_names):                                               #This table only run once, just to get ingestion id and truncate daily table
