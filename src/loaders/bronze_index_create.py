@@ -1,5 +1,6 @@
 import psycopg2
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 
 
@@ -17,6 +18,7 @@ procedures = [
 
 
 def run_procedure(name):
+    time1=time.time()
     conn = psycopg2.connect(
     host="localhost",
     port=5432,
@@ -30,7 +32,7 @@ def run_procedure(name):
         call {name}();
         """
         cur.execute(sql)
-        print(f"Procedure {name} executed successfully.")
+        print(f"Procedure {name} executed successfully in {time.time()-time1} seconds.")
         conn.commit()
         cur.close()
         conn.close()

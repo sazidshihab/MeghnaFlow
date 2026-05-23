@@ -9,7 +9,7 @@
 /* OPTIMIZED PART */
 
 /*Customer optimized validation. */
-create or replace procedure silver.customer_validation_optimized(insert_time interval)
+create or replace procedure silver.customer_validation_optimized(insert_time interval, inout validation_time interval)
 language PLPGSQL
 as $$
 DECLARE
@@ -68,7 +68,8 @@ BEGIN
             from operational_log.bronze_ingest_safetynet
             where table_name='customers' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
-            RAISE NOTICE 'Full validation for [customers] completed in %', clock_timestamp() - first_time;
+            validation_time := clock_timestamp() - first_time;
+            RAISE NOTICE 'Full validation for [customers] completed in %', validation_time;
 
 end;
 $$;
@@ -79,7 +80,7 @@ $$;
 
 
 /*Payments optimized validation. */
-create or replace procedure silver.payments_validation_optimized(insert_time interval)
+create or replace procedure silver.payments_validation_optimized(insert_time interval, inout validation_time interval)
 language PLPGSQL
 as $$
 DECLARE
@@ -153,7 +154,8 @@ BEGIN
             where table_name='payments' and ingestion_id=(select ingestion_id from operational_log.ingestion_id)
             ;
 
-            RAISE NOTICE 'Full validation for [payments] completed in %', clock_timestamp() - first_time;
+            validation_time := clock_timestamp() - first_time;
+            RAISE NOTICE 'Full validation for [payments] completed in %', validation_time;
 
 
 end;
@@ -161,7 +163,7 @@ $$;
 
 
 /*Order_items optimized validation. */
-create or replace procedure silver.order_items_validation_optimized(insert_time interval)
+create or replace procedure silver.order_items_validation_optimized(insert_time interval, inout validation_time interval)
 language PLPGSQL
 as $$
 declare
@@ -220,7 +222,8 @@ begin
             from operational_log.bronze_ingest_safetynet
             where table_name='order_items' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
-            RAISE NOTICE 'Full validation for [order_items] completed in %', clock_timestamp() - first_time;
+            validation_time := clock_timestamp() - first_time;
+            RAISE NOTICE 'Full validation for [order_items] completed in %', validation_time;
 
 end;
 $$;
@@ -229,7 +232,7 @@ $$;
 
 
 /*Orders optimized validation */
-create or replace procedure silver.orders_validation_optimized(insert_time interval)
+create or replace procedure silver.orders_validation_optimized(insert_time interval, inout validation_time interval)
 language PLPGSQL
 as $$
 declare
@@ -289,7 +292,8 @@ begin
         from operational_log.bronze_ingest_safetynet
         where table_name='orders' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
-        RAISE NOTICE 'Full validation for [orders] completed in %', clock_timestamp() - first_time;
+        validation_time := clock_timestamp() - first_time;
+        RAISE NOTICE 'Full validation for [orders] completed in %', validation_time;
 
 end;
 $$;
@@ -297,7 +301,7 @@ $$;
 
 
 /*Products optimized validation. */
-create or replace procedure silver.products_validation_optimized(insert_time interval)
+create or replace procedure silver.products_validation_optimized(insert_time interval, inout validation_time interval)
 language PLPGSQL
 as $$
 declare
@@ -357,7 +361,8 @@ begin
         from operational_log.bronze_ingest_safetynet
         where table_name='products' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
-        RAISE NOTICE 'Full validation for [products] completed in %', clock_timestamp() - first_time;
+        validation_time := clock_timestamp() - first_time;
+        RAISE NOTICE 'Full validation for [products] completed in %', validation_time;
 
 end;
 $$;

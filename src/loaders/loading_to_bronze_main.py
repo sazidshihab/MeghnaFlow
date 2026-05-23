@@ -100,20 +100,19 @@ def csv_generator(file, table_name, row_counter):
 
 
 def file_loaded(csv_files,ingestion_id):              #Function to copy data from landing to bronze
-        
-        time1=time.time()
+
         table_name = extract_table_name(csv_files.stem)
-        
-        
+
+
         config=table_config.get(table_name)
 
 
-        sql = f"""                                
+        sql = f"""
         COPY {config['target_table']}({config['columns']})
         FROM STDIN
         WITH (
             FORMAT CSV
-        ) 
+        )
         """                                   #Copying data from landing to bronze
 
         log_sql= f"""
@@ -134,7 +133,7 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
         cur = conn.cursor()                           #Executing log query
         cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name))
         table_id=cur.fetchone()[0]
-  
+
 
 
         row_counter = [0]                             #Counter incremented inside generator — no separate file scan needed
@@ -156,13 +155,15 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
                     return ''.join(chunk)
 
 
+            time1 = time.time()                                #Start timing just before COPY — excludes connection + log insert overhead
             cur.copy_expert(sql, FileWrapper(generator))       #Executing copy query
+            copy_time = time.time() - time1                   #Capture immediately after COPY completes
             cur.execute(
                 "update operational_log.bronze_ingest_log set executing_time = %s, row_count = %s  where source_file_id = %s",
-                (time.time()-time1, row_counter[0], table_id)
+                (copy_time, row_counter[0], table_id)
             )
             conn.commit()
-            print(f"Data from {csv_files.name} has been loaded into {config['target_table']}")
+            print(f"Data from {csv_files.name} has been loaded into {config['target_table']} in {copy_time} seconds")
 
         cur.close()
         conn.close()    

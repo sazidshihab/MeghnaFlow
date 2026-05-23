@@ -11,7 +11,7 @@ fake = Faker()
 # -----------------------
 N_CUSTOMERS = 100000
 N_PRODUCTS = 100000
-N_ORDERS = 200000   # reduce if your Mac struggles
+N_ORDERS = 20000000   # reduce if your Mac struggles
 
 # -----------------------
 # 1. PRODUCTS

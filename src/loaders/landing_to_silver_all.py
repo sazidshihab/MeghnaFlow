@@ -54,6 +54,7 @@ def run_procedures(name):
         database="Demo_warehouse",
         user="sazid",
     )
+       time1=time.time()                              #Start timing after connection — measures only procedure execution
 
        try:
            cur = conn.cursor()
@@ -61,7 +62,8 @@ def run_procedures(name):
            call {name};
            """
            cur.execute(sql)
-           print(f"Procedure {name} executed successfully.")
+           elapsed = time.time() - time1             #Capture immediately after procedure returns
+           print(f"Procedure {name} executed successfully.,{elapsed}")
            conn.commit()
            cur.close()
            conn.close()
@@ -84,6 +86,7 @@ def main():
         print(f"An error occurred: {e}")
 
     try:
+        time1=time.time()
         with ThreadPoolExecutor(max_workers=5) as executor:
           list(executor.map(run_procedures, procedures_raw))
           print(f"Total time taken: {time.time()-time1}")
