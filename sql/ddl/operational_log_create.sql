@@ -55,30 +55,31 @@ $$
 BEGIN
 drop table if exists operational_log.bronze_ingest_safetynet;
 create table operational_log.bronze_ingest_safetynet(
-    ingestion_id int,
-    table_name VARCHAR(255),
-    bronze_daily_row_count int,
-    bronze_main_row_count int,
-    silver_daily_row_count int,
-    silver_main_updated_row_count int,
-    silver_main_inserted_row_count int,
-    silver_main_row_count int,
-    silver_daily_insert_executing_time INTERVAL,
-    silver_daily_indexing_time INTERVAL,
-    silver_main_insert_executing_time INTERVAL,
-    silver_main_update_executing_time INTERVAL,
-    total_silver_process_executing_time INTERVAL,
-    bronze_daily_copy_executing_time INTERVAL,
-    bronze_daily_indexing_time INTERVAL,
-    bronze_main_copy_executing_time INTERVAL,
-    total_bronze_process_executing_time INTERVAL,
-    silver_daily_null_pk_count int,
-    silver_daily_required_null_count int,
-    silver_daily_duplicate_count int,
-    silver_daily_future_past_count int,
-    silver_daily_negative_count int,
-    created_at timestamp default current_date,
-    primary key(ingestion_id,table_name)
+        ingestion_id int,
+        table_name VARCHAR(255),
+        bronze_daily_row_count int,
+        bronze_main_row_count int,
+        silver_daily_row_count int,
+        silver_main_inserted_row_count int,
+        silver_main_updated_row_count int,
+        silver_main_row_count int,
+        silver_daily_insert_executing_time INTERVAL,
+        silver_daily_validation_time INTERVAL,
+        silver_daily_indexing_time INTERVAL,
+        silver_main_update_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
+        total_silver_process_executing_time INTERVAL,
+        bronze_daily_copy_executing_time INTERVAL,
+        bronze_daily_indexing_time INTERVAL,
+        bronze_main_copy_executing_time INTERVAL,
+        total_bronze_process_executing_time INTERVAL,
+        silver_daily_null_pk_count int,
+        silver_daily_required_null_count int,
+        silver_daily_duplicate_count int,
+        silver_daily_future_past_count int,
+        silver_daily_negative_count int,
+        created_at timestamp default current_date,
+        primary key(ingestion_id,table_name)
 );
 end;
 $$;
@@ -175,13 +176,14 @@ BEGIN
         bronze_daily_row_count int,
         bronze_main_row_count int,
         silver_daily_row_count int,
-        silver_main_updated_row_count int,
         silver_main_inserted_row_count int,
+        silver_main_updated_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_validation_time INTERVAL,
         silver_daily_indexing_time INTERVAL,
-        silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
         bronze_daily_copy_executing_time INTERVAL,
         bronze_daily_indexing_time INTERVAL,
@@ -203,13 +205,14 @@ BEGIN
         bronze_daily_row_count int,
         bronze_main_row_count int,
         silver_daily_row_count int,
-        silver_main_updated_row_count int,
         silver_main_inserted_row_count int,
+        silver_main_updated_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_validation_time INTERVAL,
         silver_daily_indexing_time INTERVAL,
-        silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
         bronze_daily_copy_executing_time INTERVAL,
         bronze_daily_indexing_time INTERVAL,
@@ -231,13 +234,14 @@ BEGIN
         bronze_daily_row_count int,
         bronze_main_row_count int,
         silver_daily_row_count int,
-        silver_main_updated_row_count int,
         silver_main_inserted_row_count int,
+        silver_main_updated_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_validation_time INTERVAL,
         silver_daily_indexing_time INTERVAL,
-        silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
         bronze_daily_copy_executing_time INTERVAL,
         bronze_daily_indexing_time INTERVAL,
@@ -259,13 +263,14 @@ BEGIN
         bronze_daily_row_count int,
         bronze_main_row_count int,
         silver_daily_row_count int,
-        silver_main_updated_row_count int,
         silver_main_inserted_row_count int,
+        silver_main_updated_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_validation_time INTERVAL,
         silver_daily_indexing_time INTERVAL,
-        silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
         bronze_daily_copy_executing_time INTERVAL,
         bronze_daily_indexing_time INTERVAL,
@@ -287,13 +292,14 @@ BEGIN
         bronze_daily_row_count int,
         bronze_main_row_count int,
         silver_daily_row_count int,
-        silver_main_updated_row_count int,
         silver_main_inserted_row_count int,
+        silver_main_updated_row_count int,
         silver_main_row_count int,
         silver_daily_insert_executing_time INTERVAL,
+        silver_daily_validation_time INTERVAL,
         silver_daily_indexing_time INTERVAL,
-        silver_main_insert_executing_time INTERVAL,
         silver_main_update_executing_time INTERVAL,
+        silver_main_insert_executing_time INTERVAL,
         total_silver_process_executing_time INTERVAL,
         bronze_daily_copy_executing_time INTERVAL,
         bronze_daily_indexing_time INTERVAL,
@@ -344,3 +350,36 @@ call operational_log.ingestion_id_create();
 =============================================================================
 --CREATING INGESTION_ID TABLE -- END--
 ==============================================================================
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
+
+
+
+
+=============================================================================
+--CREATING GOLD LOAD LOG TABLE -- START--
+=============================================================================
+
+create or replace procedure operational_log.gold_load_log_create()
+language plpgsql as $$
+begin
+    drop table if exists operational_log.gold_load_log;
+    create table operational_log.gold_load_log(
+        ingestion_id    int,
+        table_name      varchar(255),
+        rows_upserted   int,
+        executing_time  interval,
+        created_at      timestamp   default current_timestamp,
+        primary key (ingestion_id, table_name)
+    );
+end;
+$$;
+
+call operational_log.gold_load_log_create();
+
+=============================================================================
+--CREATING GOLD LOAD LOG TABLE -- END--
+=============================================================================

@@ -20,7 +20,8 @@ select count(*) from bronze.customers_raw_daily;
 
 
 
-
+select * from silver.customers_raw_p where source_file_id='478';
+select * from silver.customers_daily where source_file_id='478';
 
 
 
@@ -55,3 +56,8 @@ call silver.ingest_silver_raw_orders();
 
 
 
+
+
+
+select * from silver.order_items_raw_p where source_file_id='696';
+select * from silver.order_items_daily where source_file_id='696';

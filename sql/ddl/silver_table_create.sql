@@ -139,7 +139,7 @@ BEGIN
 
 
         drop table if exists silver.order_date_lookup;
-        create table silver.order_date_lookup (
+        create unlogged table silver.order_date_lookup (
                 order_id   varchar(255) primary key,
                 order_date date not null
         );
