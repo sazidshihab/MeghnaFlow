@@ -29,7 +29,7 @@ food_catalog = {
 product_names = list(food_catalog.keys())
 
 products = pd.DataFrame({
-    "product_id": [f"P{i}" for i in range(N_PRODUCTS)],
+    "product_id": [f"P{i}" for i in range(N_PRODUCTS,200000)],
     "name": np.random.choice(product_names, N_PRODUCTS)
 })
 
@@ -40,7 +40,7 @@ products["price"] = products["name"].map(lambda x: food_catalog[x][1])
 # 2. CUSTOMERS
 # -----------------------
 customers = pd.DataFrame({
-    "customer_id": [f"C{i}" for i in range(N_CUSTOMERS)],
+    "customer_id": [f"C{i}" for i in range(N_CUSTOMERS,200000)],
     "name": [fake.name() for _ in range(N_CUSTOMERS)],
     "signup_date": pd.to_datetime(
         np.random.randint(16000, 19000, N_CUSTOMERS), unit="D"
@@ -53,7 +53,7 @@ customers = pd.DataFrame({
 customer_ids = customers["customer_id"].values
 
 orders = pd.DataFrame({
-    "order_id": [f"O{i}" for i in range(N_ORDERS)],
+    "order_id": [f"O{i}" for i in range(N_ORDERS,40000000)],
     "customer_id": np.random.choice(customer_ids, N_ORDERS),
 })
 

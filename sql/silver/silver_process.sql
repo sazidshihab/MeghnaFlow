@@ -9,7 +9,7 @@
 /* OPTIMIZED PART */
 
 /*Customer optimized validation. */
-create or replace procedure silver.customer_validation_optimized(insert_time interval, inout validation_time interval)
+create or replace procedure silver.customer_validation_optimized(insert_time interval, inout validation_time interval, after_dup_row_count int)
 language PLPGSQL
 as $$
 DECLARE
@@ -17,6 +17,7 @@ silver_customers_null_pk_count int;
 silver_customers_null_count int;
 silver_customers_duplicate_count int;
 silver_customers_future_past_count int;
+local_bronze_row_count int;
 first_time timestamp:= clock_timestamp();
 BEGIN
 
@@ -51,11 +52,10 @@ BEGIN
             from inserted;
 
             /*duplicate count*/
-            select count(*) into silver_customers_duplicate_count from (
-            select customer_id,
-            row_number() over(partition by customer_id,name,signup_date order by created_at_bronze desc) as rnk
-            from bronze.customers_raw_daily
-            ) as b where rnk>1;
+            select bronze_daily_row_count into local_bronze_row_count
+            from operational_log.bronze_ingest_safetynet
+            where table_name='customers' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+            silver_customers_duplicate_count := local_bronze_row_count - after_dup_row_count;
 
             raise notice '[customers]null pk count: %',silver_customers_null_pk_count;
             raise notice '[customers]other null count: %',silver_customers_null_count;
@@ -63,8 +63,8 @@ BEGIN
             raise notice '[customers]duplicate count: %',silver_customers_duplicate_count;
 
             insert into operational_log.customers_log
-            (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
-            select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_customers_null_pk_count,0),COALESCE(silver_customers_null_count,0),COALESCE(silver_customers_duplicate_count,0),COALESCE(silver_customers_future_past_count,0),0
+            (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+            select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_customers_null_pk_count,0),COALESCE(silver_customers_null_count,0),COALESCE(silver_customers_duplicate_count,0),COALESCE(silver_customers_future_past_count,0),0
             from operational_log.bronze_ingest_safetynet
             where table_name='customers' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
@@ -80,17 +80,16 @@ $$;
 
 
 /*Payments optimized validation. */
-create or replace procedure silver.payments_validation_optimized(insert_time interval, inout validation_time interval)
+create or replace procedure silver.payments_validation_optimized(insert_time interval, inout validation_time interval, after_dup_row_count int)
 language PLPGSQL
 as $$
 DECLARE
-bronze_payments_row_count int;
-silver_payments_row_count int;
 silver_payments_null_pk_count int;
 silver_payments_null_count int;
 silver_payments_duplicate_count int;
 silver_payments_future_past_count int;
 silver_payments_negative_count int;
+local_bronze_row_count int;
 first_time timestamp:= clock_timestamp();
 BEGIN
 
@@ -133,23 +132,19 @@ BEGIN
             raise notice '[payments]future or past date count: %',silver_payments_future_past_count;
             raise notice '[payments]negative count: %',silver_payments_negative_count;
 
-         
-
 
             /*duplicate count */
-            select count(*) into silver_payments_duplicate_count from (
-            select payment_id,
-            row_number() over(partition by payment_id,payment_date,method,order_id,order_date,total order by created_at_bronze desc) as rn
-            from bronze.payments_raw_daily
-            ) ranked
-            where rn>1;
+            select bronze_daily_row_count into local_bronze_row_count
+            from operational_log.bronze_ingest_safetynet
+            where table_name='payments' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+            silver_payments_duplicate_count := local_bronze_row_count - after_dup_row_count;
             
 
 
             /*insert into operational_log*/
             insert into operational_log.payments_log
-            (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
-            select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_payments_null_pk_count,0),COALESCE(silver_payments_null_count,0),COALESCE(silver_payments_duplicate_count,0),COALESCE(silver_payments_future_past_count,0),COALESCE(silver_payments_negative_count,0)
+            (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+            select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_payments_null_pk_count,0),COALESCE(silver_payments_null_count,0),COALESCE(silver_payments_duplicate_count,0),COALESCE(silver_payments_future_past_count,0),COALESCE(silver_payments_negative_count,0)
             from operational_log.bronze_ingest_safetynet
             where table_name='payments' and ingestion_id=(select ingestion_id from operational_log.ingestion_id)
             ;
@@ -163,7 +158,7 @@ $$;
 
 
 /*Order_items optimized validation. */
-create or replace procedure silver.order_items_validation_optimized(insert_time interval, inout validation_time interval)
+create or replace procedure silver.order_items_validation_optimized(insert_time interval, inout validation_time interval, after_dup_row_count int)
 language PLPGSQL
 as $$
 declare
@@ -171,6 +166,7 @@ silver_order_items_duplicate_count int;
 silver_order_items_null_pk_count int;
 silver_order_items_null_count int;
 silver_order_items_negative_count int;
+local_bronze_row_count int;
 first_time timestamp := clock_timestamp();
 begin
 
@@ -204,12 +200,10 @@ begin
             from inserted;
 
             /*Duplicate count */
-            select count(*) into silver_order_items_duplicate_count from (
-            select order_id,
-            row_number() over(partition by order_id,product_id,quantity,unit_price,total order by created_at_bronze desc) as rn
-            from bronze.order_items_raw_daily
-            ) ranked
-            where rn>1;
+            select bronze_daily_row_count into local_bronze_row_count
+            from operational_log.bronze_ingest_safetynet
+            where table_name='order_items' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+            silver_order_items_duplicate_count := local_bronze_row_count - after_dup_row_count;
 
             raise notice '[order_items]null pk count: %',silver_order_items_null_pk_count;
             raise notice '[order_items]null count: %',silver_order_items_null_count;
@@ -217,8 +211,8 @@ begin
             raise notice '[order_items]negative count: %',silver_order_items_negative_count;
 
             insert into operational_log.order_items_log
-            (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
-            select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_order_items_null_pk_count,0),COALESCE(silver_order_items_null_count,0),COALESCE(silver_order_items_duplicate_count,0),0,COALESCE(silver_order_items_negative_count,0)
+            (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+            select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_order_items_null_pk_count,0),COALESCE(silver_order_items_null_count,0),COALESCE(silver_order_items_duplicate_count,0),0,COALESCE(silver_order_items_negative_count,0)
             from operational_log.bronze_ingest_safetynet
             where table_name='order_items' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
@@ -232,7 +226,7 @@ $$;
 
 
 /*Orders optimized validation */
-create or replace procedure silver.orders_validation_optimized(insert_time interval, inout validation_time interval)
+create or replace procedure silver.orders_validation_optimized(insert_time interval, inout validation_time interval, after_dup_row_count int)
 language PLPGSQL
 as $$
 declare
@@ -240,6 +234,7 @@ silver_orders_null_pk_count int;
 silver_orders_null_count int;
 silver_orders_future_or_past_date_count int;
 silver_orders_duplicate_count int;
+local_bronze_row_count int;
 first_time timestamp := clock_timestamp();
 begin
 
@@ -274,12 +269,10 @@ begin
         from inserted;
 
         /*Duplicate count */
-        select count(*) into silver_orders_duplicate_count from (
-        select order_id,
-        row_number() over(partition by order_id,customer_id,order_date,status order by created_at_bronze desc) as rn
-        from bronze.orders_raw_daily
-        ) ranked
-        where rn>1;
+        select bronze_daily_row_count into local_bronze_row_count
+        from operational_log.bronze_ingest_safetynet
+        where table_name='orders' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+        silver_orders_duplicate_count := local_bronze_row_count - after_dup_row_count;
 
         raise notice '[orders]null pk count: %',silver_orders_null_pk_count;
         raise notice '[orders]null count: %',silver_orders_null_count;
@@ -287,8 +280,8 @@ begin
         raise notice '[orders]future or past date count: %',silver_orders_future_or_past_date_count;
 
         insert into operational_log.orders_log
-        (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
-        select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_orders_null_pk_count,0),COALESCE(silver_orders_null_count,0),COALESCE(silver_orders_duplicate_count,0),COALESCE(silver_orders_future_or_past_date_count,0),0
+        (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+        select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_orders_null_pk_count,0),COALESCE(silver_orders_null_count,0),COALESCE(silver_orders_duplicate_count,0),COALESCE(silver_orders_future_or_past_date_count,0),0
         from operational_log.bronze_ingest_safetynet
         where table_name='orders' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
@@ -301,7 +294,7 @@ $$;
 
 
 /*Products optimized validation. */
-create or replace procedure silver.products_validation_optimized(insert_time interval, inout validation_time interval)
+create or replace procedure silver.products_validation_optimized(insert_time interval, inout validation_time interval, after_dup_row_count int)
 language PLPGSQL
 as $$
 declare
@@ -309,6 +302,7 @@ silver_products_null_pk_count int;
 silver_products_null_count int;
 silver_products_duplicate_count int;
 silver_products_negative_count int;
+local_bronze_row_count int;
 first_time timestamp := clock_timestamp();
 begin
 
@@ -343,12 +337,10 @@ begin
         from inserted;
 
         /*Duplicate count */
-        select count(*) into silver_products_duplicate_count from (
-        select product_id,
-        row_number() over(partition by product_id,name,category,price order by created_at_bronze desc) as rn
-        from bronze.products_raw_daily
-        ) ranked
-        where rn>1;
+        select bronze_daily_row_count into local_bronze_row_count
+        from operational_log.bronze_ingest_safetynet
+        where table_name='products' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
+        silver_products_duplicate_count := local_bronze_row_count - after_dup_row_count;
 
         raise notice '[products]null pk count: %',silver_products_null_pk_count;
         raise notice '[products]null count: %',silver_products_null_count;
@@ -356,8 +348,8 @@ begin
         raise notice '[products]negative count: %',silver_products_negative_count;
 
         insert into operational_log.products_log
-        (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
-        select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_insert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_products_null_pk_count,0),COALESCE(silver_products_null_count,0),COALESCE(silver_products_duplicate_count,0),0,COALESCE(silver_products_negative_count,0)
+        (ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,silver_daily_insert_executing_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,silver_daily_null_pk_count,silver_daily_required_null_count,silver_daily_duplicate_count,silver_daily_future_past_count,silver_daily_negative_count)
+        select ingestion_id,table_name,bronze_daily_row_count,bronze_main_row_count,silver_daily_row_count,silver_main_row_count,insert_time,silver_daily_indexing_time,silver_main_upsert_executing_time,total_silver_process_executing_time,bronze_daily_copy_executing_time,bronze_daily_indexing_time,bronze_main_copy_executing_time,total_bronze_process_executing_time,COALESCE(silver_products_null_pk_count,0),COALESCE(silver_products_null_count,0),COALESCE(silver_products_duplicate_count,0),0,COALESCE(silver_products_negative_count,0)
         from operational_log.bronze_ingest_safetynet
         where table_name='products' and ingestion_id=(select ingestion_id from operational_log.ingestion_id);
 
