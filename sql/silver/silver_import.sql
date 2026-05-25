@@ -64,10 +64,10 @@ BEGIN
 
                 insert into silver.payments_daily(payment_id,method,order_id,customer_id,order_date,total,payment_date,created_at_bronze,source_file_id)
                 select distinct on(payment_id,order_id)
-                        lower(trim(payment_id))::varchar(255),
+                        payment_id,
                         lower(trim(method))::varchar(50),
-                        lower(trim(order_id))::varchar(255),
-                        lower(trim(customer_id))::varchar(255),
+                        order_id,
+                        customer_id,
                         case when nullif(trim(order_date),'') ~'^\d{4}-\d{2}-\d{2}$'
                         then to_date(trim(order_date),'YYYY-MM-DD')
                         end,
@@ -134,8 +134,8 @@ BEGIN
 
                 insert into silver.order_items_daily(order_id,product_id,quantity,unit_price,total,created_at_bronze,source_file_id)
                 select distinct on(order_id,product_id)
-                        lower(trim(order_id))::varchar(255),
-                        lower(trim(product_id))::varchar(255),
+                        order_id,
+                        product_id,
                         trim(quantity::text)::numeric(10,2),
                         trim(unit_price::text)::numeric(10,2),
                         trim(total::text)::numeric(10,2),
@@ -198,8 +198,8 @@ BEGIN
 
                 insert into silver.orders_daily(order_id,customer_id,order_date,status,created_at_bronze,source_file_id)
                 select distinct on(order_id,customer_id)
-                        lower(trim(order_id))::varchar(255),
-                        lower(trim(customer_id))::varchar(255),
+                        order_id,
+                        customer_id,
                         case when nullif(trim(order_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
                         then to_date(trim(order_date),'YYYY-MM-DD')
                         end,
@@ -270,7 +270,7 @@ BEGIN
 
                 insert into silver.customers_daily(customer_id,name,signup_date,created_at_bronze,source_file_id)
                 select distinct on(customer_id)
-                        lower(trim(customer_id))::varchar(255),
+                        customer_id,
                         lower(trim(name))::varchar(255),
                         case when nullif(trim(signup_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
                         then to_date(trim(signup_date),'YYYY-MM-DD')
@@ -330,7 +330,7 @@ BEGIN
 
                 insert into silver.products_daily(product_id,name,category,price,created_at_bronze,source_file_id)
                 select distinct on(product_id)
-                        lower(trim(product_id))::varchar(255),
+                        product_id,
                         lower(trim(name))::varchar(255),
                         lower(trim(category))::varchar(255),
                         trim(price::text)::numeric(10,2),

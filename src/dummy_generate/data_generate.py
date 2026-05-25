@@ -29,7 +29,7 @@ food_catalog = {
 product_names = list(food_catalog.keys())
 
 products = pd.DataFrame({
-    "product_id": [f"P{i}" for i in range(200500,201500)],
+    "product_id": list(range(200500,201500)),
     "name": np.random.choice(product_names, N_PRODUCTS)
 })
 
@@ -40,7 +40,7 @@ products["price"] = products["name"].map(lambda x: food_catalog[x][1])
 # 2. CUSTOMERS
 # -----------------------
 customers = pd.DataFrame({
-    "customer_id": [f"C{i}" for i in range(200300,201300)],
+    "customer_id": list(range(200300,201300)),
     "name": [fake.name() for _ in range(N_CUSTOMERS)],
     "signup_date": pd.to_datetime(
         np.random.randint(16000, 19000, N_CUSTOMERS), unit="D"
@@ -53,7 +53,7 @@ customers = pd.DataFrame({
 customer_ids = customers["customer_id"].values
 
 orders = pd.DataFrame({
-    "order_id": [f"O{i}" for i in range(3500000,23500000)],
+    "order_id": list(range(3500000,23500000)),
     "customer_id": np.random.choice(customer_ids, N_ORDERS),
 })
 
@@ -99,7 +99,7 @@ payments_base = payments_base.merge(orders[["order_id", "customer_id", "order_da
 
 n = len(payments_base)
 payments = pd.DataFrame({
-    "payment_id":   [f"PAY{i}" for i in range(n)],
+    "payment_id":   list(range(30000000, 30000000+n)),
     "method":       np.random.choice(["card", "Card", "cash", "CASH"], n),
     "order_id":     payments_base["order_id"].values,
     "customer_id":  payments_base["customer_id"].values,

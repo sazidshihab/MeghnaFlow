@@ -15,7 +15,7 @@ BEGIN
         drop table if exists silver.customers_daily;
         create unlogged table silver.customers_daily
         (
-                customer_id varchar(255),
+                customer_id bigint,
                 name varchar(255),
                 signup_date date ,
                 created_at_bronze timestamp ,
@@ -28,8 +28,8 @@ BEGIN
         drop table if exists silver.order_items_daily;
         create unlogged table silver.order_items_daily
         (
-                order_id VARCHAR(255) ,
-                product_id VARCHAR(255) ,
+                order_id bigint,
+                product_id bigint,
                 quantity numeric(10,2),
                 unit_price numeric(10,2),
                 total numeric(10,2),
@@ -42,8 +42,8 @@ BEGIN
         drop table if exists silver.orders_daily;
         create unlogged table silver.orders_daily
         (
-                order_id VARCHAR(255) ,
-                customer_id VARCHAR(255),
+                order_id bigint,
+                customer_id bigint,
                 order_date date,
                 status VARCHAR(50),
                 created_at_bronze timestamp ,
@@ -54,11 +54,11 @@ BEGIN
 
         drop table if exists silver.payments_daily;
         create unlogged table silver.payments_daily(
-                payment_id varchar(255) ,
+                payment_id bigint,
                 payment_date date ,
                 method VARCHAR(50),
-                order_id VARCHAR(255),
-                customer_id VARCHAR(255),
+                order_id bigint,
+                customer_id bigint,
                 order_date date,
                 total numeric(10,2),
                 created_at_bronze timestamp ,
@@ -111,7 +111,7 @@ BEGIN
 
         drop table if exists silver.customers_raw_p;
         create unlogged table silver.customers_raw_p (
-                customer_id varchar(255),
+                customer_id bigint,
                 name varchar(255),
                 signup_date date ,
                 created_at_bronze timestamp ,
@@ -128,7 +128,7 @@ BEGIN
 
         drop table if exists silver.products_raw;
         create unlogged table silver.products_raw (
-                product_id varchar(100) ,
+                product_id bigint,
                 name VARCHAR(255),
                 category VARCHAR(255),
                 price numeric(10,2),
@@ -141,7 +141,7 @@ BEGIN
 
         drop table if exists silver.order_date_lookup;
         create unlogged table silver.order_date_lookup (
-                order_id   varchar(255) primary key,
+                order_id   bigint primary key,
                 order_date date not null
         );
 
@@ -149,8 +149,8 @@ BEGIN
 
         drop table if exists silver.orders_raw_p cascade;
         create unlogged table silver.orders_raw_p (
-                order_id VARCHAR(255) ,
-                customer_id VARCHAR(255),
+                order_id bigint,
+                customer_id bigint,
                 order_date date not null,
                 status VARCHAR(50),
                 created_at_bronze timestamp ,
@@ -162,8 +162,8 @@ BEGIN
 
         drop table if exists silver.order_items_raw_p cascade;
         create unlogged table silver.order_items_raw_p (
-                order_id VARCHAR(255) ,
-                product_id VARCHAR(255) ,
+                order_id bigint,
+                product_id bigint,
                 quantity numeric(10,2),
                 unit_price numeric(10,2),
                 total numeric(10,2),
@@ -178,11 +178,11 @@ BEGIN
 
         drop table if exists silver.payments_raw_p cascade;
         create unlogged table silver.payments_raw_p(
-                payment_id varchar(255) ,
+                payment_id bigint,
                 payment_date date not null,
                 method VARCHAR(50),
-                order_id VARCHAR(255),
-                customer_id VARCHAR(255),
+                order_id bigint,
+                customer_id bigint,
                 order_date date,
                 total numeric(10,2),
                 created_at_bronze timestamp ,

@@ -46,7 +46,7 @@ begin
         -- -------------------------------------------------------
         create table gold.dim_customers (
                 customer_key    serial          primary key,
-                customer_id     varchar(255)    unique not null,
+                customer_id     bigint          unique not null,
                 name            varchar(255),
                 signup_date     date,
                 first_seen_at   timestamp,
@@ -62,7 +62,7 @@ begin
         -- -------------------------------------------------------
         create table gold.dim_products (
                 product_key     serial          primary key,
-                product_id      varchar(255)    unique not null,
+                product_id      bigint          unique not null,
                 name            varchar(255),
                 category        varchar(255),
                 price           numeric(10,2),
@@ -83,8 +83,8 @@ begin
         -- -------------------------------------------------------
         create table gold.fact_sales (
                 sale_key        bigserial       ,
-                order_id        varchar(255)    ,
-                product_id      varchar(255)    ,
+                order_id        bigint          ,
+                product_id      bigint          ,
                 order_date      date            ,
                 customer_key    int             references gold.dim_customers(customer_key),
                 product_key     int             references gold.dim_products(product_key),
@@ -111,8 +111,8 @@ begin
         -- -------------------------------------------------------
         create table gold.fact_payments (
                 payment_key         bigserial       ,
-                payment_id          varchar(255)    ,
-                order_id            varchar(255)    ,
+                payment_id          bigint          ,
+                order_id            bigint          ,
                 payment_date        date            ,
                 customer_key        int             references gold.dim_customers(customer_key),
                 order_date_key      int             references gold.dim_date(date_key),

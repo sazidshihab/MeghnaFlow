@@ -13,7 +13,7 @@ BEGIN
         drop table if exists bronze.customers_raw;
         create unlogged table bronze.customers_raw
                 (
-                    customer_id text,
+                    customer_id bigint,
                     name text,
                     signup_date text, 
                     created_at_bronze timestamp default current_timestamp,
@@ -23,7 +23,7 @@ BEGIN
 
         drop table if exists bronze.products_raw;
         create unlogged table bronze.products_raw(
-                    product_id text ,
+                    product_id bigint,
                     name text,
                     category text,
                     price text,
@@ -34,8 +34,8 @@ BEGIN
 
         drop table if exists bronze.orders_raw;
         create unlogged table bronze.orders_raw(
-                order_id text,
-                customer_id text,
+                order_id bigint,
+                customer_id bigint,
                 order_date text,
                 status text,
                 created_at_bronze timestamp default current_timestamp,
@@ -44,8 +44,8 @@ BEGIN
 
         drop table if exists bronze.order_items_raw;
         create unlogged table bronze.order_items_raw(
-                order_id text,
-                product_id text,
+                order_id bigint,
+                product_id bigint,
                 quantity text,
                 unit_price text,
                 total text,
@@ -56,10 +56,10 @@ BEGIN
 
         drop table if exists bronze.payments_raw;
         create unlogged table bronze.payments_raw(
-                    payment_id text ,
+                    payment_id bigint,
                     method text,
-                    order_id text,
-                    customer_id text,
+                    order_id bigint,
+                    customer_id bigint,
                     order_date text,
                     total text,
                     payment_date text,
@@ -93,19 +93,19 @@ as $$
 BEGIN
 
         drop table if exists bronze.customers_raw_daily;
-        create UNLOGGED table bronze.customers_raw_daily(customer_id text, name text, signup_date text, created_at_bronze timestamp default current_timestamp, source_file_id text);
+        create UNLOGGED table bronze.customers_raw_daily(customer_id bigint, name text, signup_date text, created_at_bronze timestamp default current_timestamp, source_file_id text);
         
         drop table if exists  bronze.products_raw_daily;
-        create UNLOGGED table bronze.products_raw_daily(product_id text, name text, category text, price text, created_at_bronze timestamp default current_timestamp, source_file_id text);
+        create UNLOGGED table bronze.products_raw_daily(product_id bigint, name text, category text, price text, created_at_bronze timestamp default current_timestamp, source_file_id text);
         
         drop table if exists bronze.orders_raw_daily;
-        create UNLOGGED table bronze.orders_raw_daily(order_id text, customer_id text, order_date text, status text, created_at_bronze timestamp default current_timestamp, source_file_id text);
+        create UNLOGGED table bronze.orders_raw_daily(order_id bigint, customer_id bigint, order_date text, status text, created_at_bronze timestamp default current_timestamp, source_file_id text);
         
         drop table if exists bronze.order_items_raw_daily;
-        create UNLOGGED table bronze.order_items_raw_daily(order_id text, product_id text, quantity text, unit_price text, total text, created_at_bronze timestamp default current_timestamp, source_file_id text);
+        create UNLOGGED table bronze.order_items_raw_daily(order_id bigint, product_id bigint, quantity text, unit_price text, total text, created_at_bronze timestamp default current_timestamp, source_file_id text);
         
         drop table if exists bronze.payments_raw_daily;
-        create UNLOGGED table bronze.payments_raw_daily(payment_id text, method text, order_id text, customer_id text, order_date text, total text, payment_date text, created_at_bronze timestamp default current_timestamp, source_file_id text);
+        create UNLOGGED table bronze.payments_raw_daily(payment_id bigint, method text, order_id bigint, customer_id bigint, order_date text, total text, payment_date text, created_at_bronze timestamp default current_timestamp, source_file_id text);
          
 end;
 $$;

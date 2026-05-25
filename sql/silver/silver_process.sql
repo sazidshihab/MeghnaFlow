@@ -25,11 +25,11 @@ BEGIN
             /*Quarantine(PK+required_fields+future_past date)+Count*/
             with deleted as(
             delete from silver.customers_daily
-            where nullif(customer_id,'') is null or nullif(name,'') is null or nullif(signup_date::text,'') is null OR
+            where customer_id is null or nullif(name,'') is null or nullif(signup_date::text,'') is null OR
             signup_date>now()+interval '1 day' or signup_date<'2015-01-01'
             returning *,
             case
-            when nullif(customer_id,'') is null then 'missing_pk'
+            when customer_id is null then 'missing_pk'
             when nullif(name,'') is null or nullif(signup_date::text,'') is null then 'missing_required_fields'
             when signup_date>now()+interval '1 day' or signup_date<'2015-01-01' then 'future_or_past_date'
             end as reject_reason
@@ -97,11 +97,11 @@ BEGIN
             /*Quarantine(PK+required_fields+future_past date)+Count(PK+required_fields+future_past date)*/
             with deleted as(
             delete from silver.payments_daily
-            where nullif(payment_id,'') is null or nullif(order_id,'') is null or nullif(payment_date::text,'') is null or nullif(method,'') is null OR
+            where payment_id is null or order_id is null or nullif(payment_date::text,'') is null or nullif(method,'') is null OR
             payment_date>now()+interval '1 day' or payment_date<'2015-01-01' or nullif(order_date::text,'') is null or order_date>now()+interval '1 day' or order_date<'2015-01-01' or nullif(total::text,'') is null or total<0
             returning *,
             case
-            when nullif(payment_id,'') is null or nullif(order_id,'') is null then 'missing_pk'
+            when payment_id is null or order_id is null then 'missing_pk'
             when nullif(payment_date::text,'') is null or nullif(method,'') is null or nullif(order_date::text,'') is null or nullif(total::text,'') is null then 'missing_required_fields'
             when payment_date>now()+interval '1 day' or payment_date<'2015-01-01' or order_date>now()+interval '1 day' or order_date<'2015-01-01' then 'future_or_past_date'
             when total<0 then 'negative_total'
@@ -173,10 +173,10 @@ begin
             /*Quarantine */
             with deleted as(
             delete from silver.order_items_daily
-            where nullif(order_id,'') is null or nullif(product_id,'') is null or nullif(quantity::text,'') is null or quantity<0 or nullif(unit_price::text,'') is null or unit_price<0 or nullif(total::text,'') is null or total<0
+            where order_id is null or product_id is null or nullif(quantity::text,'') is null or quantity<0 or nullif(unit_price::text,'') is null or unit_price<0 or nullif(total::text,'') is null or total<0
             returning *,
             case
-            when nullif(order_id,'') is null or nullif(product_id,'') is null then 'missing_pk'
+            when order_id is null or product_id is null then 'missing_pk'
             when nullif(unit_price::text,'') is null or nullif(total::text,'') is null or nullif(quantity::text,'') is null then 'missing_required_fields'
             when unit_price<0 or total<0 or quantity<0 then 'negative_values'
             end as reject_reason
@@ -241,11 +241,11 @@ begin
         /*Quarantine */
         with deleted as(
         delete from silver.orders_daily
-        where nullif(order_id,'') is null or nullif(customer_id,'') is null or nullif(order_date::text,'') is null or nullif(status,'') is null OR
+        where order_id is null or customer_id is null or nullif(order_date::text,'') is null or nullif(status,'') is null OR
         order_date>now()+interval '1 day' or order_date<'2015-01-01'
         returning *,
         case
-        when nullif(order_id,'') is null or nullif(customer_id,'') is null then 'missing_pk'
+        when order_id is null or customer_id is null then 'missing_pk'
         when nullif(order_date::text,'') is null or nullif(status,'') is null then 'missing_required_fields'
         when order_date>now()+interval '1 day' or order_date<'2015-01-01' then 'future_or_past_date'
         end as reject_reason
@@ -309,11 +309,11 @@ begin
         /*Quarantine */
         with deleted as(
             delete from silver.products_daily
-            where nullif(product_id,'') is null or nullif(name,'') is null or nullif(category,'') is NULL
+            where product_id is null or nullif(name,'') is null or nullif(category,'') is NULL
             or nullif(price::text,'') is null or price<0
             returning *,
             CASE
-               when nullif(product_id,'') is null then 'missing_pk'
+               when product_id is null then 'missing_pk'
                when nullif(name,'') is null or nullif(category,'') is NULL or nullif(price::text,'') is null then 'missing_required_fields'
                when price<0 then 'negative_price'
                end as reject_reason

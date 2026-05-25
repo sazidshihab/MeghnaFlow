@@ -61,3 +61,6 @@ call silver.ingest_silver_raw_orders();
 
 select * from silver.order_items_raw_p where source_file_id='696';
 select * from silver.order_items_daily where source_file_id='696';
+
+
+drop procedure silver.products_validation_optimized(IN insert_time interval, INOUT validation_time interval)
