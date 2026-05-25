@@ -1,6 +1,7 @@
 -- Active: 1776668343304@@127.0.0.1@5432@Demo_warehouse@gold
 
 
+
 ==============================================================
 --GOLD INDEXES (run once at setup, idempotent) -- START--
 ==============================================================
@@ -303,7 +304,7 @@ begin
                 left join gold.dim_customers     dc on  dc.customer_id = p.customer_id
                 left join gold.dim_date          od on  od.full_date   = p.order_date
                 left join gold.dim_date          pd on  pd.full_date   = p.payment_date
-                on conflict (payment_id) do nothing
+                on conflict (payment_id,payment_date) do nothing
                 returning 1
         )
         select count(*) into rows_upserted from upserted;
