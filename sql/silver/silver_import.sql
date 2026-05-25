@@ -62,11 +62,12 @@ BEGIN
                 raise notice 'started,,,,';
                 first_time := clock_timestamp();
 
-                insert into silver.payments_daily(payment_id,method,order_id,order_date,total,payment_date,created_at_bronze,source_file_id)
+                insert into silver.payments_daily(payment_id,method,order_id,customer_id,order_date,total,payment_date,created_at_bronze,source_file_id)
                 select distinct on(payment_id,order_id)
                         lower(trim(payment_id))::varchar(255),
                         lower(trim(method))::varchar(50),
                         lower(trim(order_id))::varchar(255),
+                        lower(trim(customer_id))::varchar(255),
                         case when nullif(trim(order_date),'') ~'^\d{4}-\d{2}-\d{2}$'
                         then to_date(trim(order_date),'YYYY-MM-DD')
                         end,
@@ -405,11 +406,12 @@ BEGIN
 
         local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
 
-        insert into silver.payments_raw_p(payment_id,payment_date,method,order_id,order_date,total,created_at_bronze,source_file_id)
-        select payment_id,payment_date,method,order_id,order_date,total,created_at_bronze,source_file_id
+        insert into silver.payments_raw_p(payment_id,payment_date,method,order_id,customer_id,order_date,total,created_at_bronze,source_file_id)
+        select payment_id,payment_date,method,order_id,customer_id,order_date,total,created_at_bronze,source_file_id
         from silver.payments_daily
         on conflict (payment_id,order_id,payment_date) do update set
             method            = excluded.method,
+            customer_id       = excluded.customer_id,
             order_date        = excluded.order_date,
             total             = excluded.total,
             created_at_bronze = excluded.created_at_bronze,

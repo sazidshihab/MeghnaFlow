@@ -3,12 +3,10 @@ import psycopg2
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-import shutil
 import csv
-import threading
 
 
-def log(table_names):                                               #This table only run once, just to get ingestion id and truncate daily table
+def log():                                               #This table only run once, just to get ingestion id and truncate daily table
     conn = psycopg2.connect(
         host="localhost",
         port=5432,
@@ -62,7 +60,7 @@ table_config = {                                                  #Dictionary of
     {
         "columns":"""
 
-        payment_id, method, order_id, order_date, total, payment_date,source_file_id """,
+        payment_id, method, order_id, customer_id, order_date, total, payment_date,source_file_id """,
         "target_table": "bronze.payments_raw"
     },
 "products" :
@@ -144,7 +142,7 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
             class FileWrapper:                   #Warp Class, so generator returned rows can be send as file to copy quer
                 def __init__(self,generator):
                     self.generator = generator
-                def read(self, size=-1):          #This method called by copy_expert auto until all rows are copied
+                def read(self, _size=-1):          #This method called by copy_expert auto until all rows are copied
                     try:
                         chunk =[]
                         for _ in range(150000):
@@ -178,7 +176,7 @@ def main():
     csv_files = list(landing_folder.glob("*.csv"))  
     #Listing all files in landing folder
 
-    ingestion_id = log(csv_files)                                 #Calling log function
+    ingestion_id = log()                                 #Calling log function
 
 
     #Multithreading with 5 threads

@@ -59,6 +59,7 @@ BEGIN
                     payment_id text ,
                     method text,
                     order_id text,
+                    customer_id text,
                     order_date text,
                     total text,
                     payment_date text,
@@ -104,7 +105,7 @@ BEGIN
         create UNLOGGED table bronze.order_items_raw_daily(order_id text, product_id text, quantity text, unit_price text, total text, created_at_bronze timestamp default current_timestamp, source_file_id text);
         
         drop table if exists bronze.payments_raw_daily;
-        create UNLOGGED table bronze.payments_raw_daily(payment_id text, method text, order_id text, order_date text, total text, payment_date text, created_at_bronze timestamp default current_timestamp, source_file_id text);
+        create UNLOGGED table bronze.payments_raw_daily(payment_id text, method text, order_id text, customer_id text, order_date text, total text, payment_date text, created_at_bronze timestamp default current_timestamp, source_file_id text);
          
 end;
 $$;

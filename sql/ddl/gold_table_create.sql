@@ -82,9 +82,10 @@ begin
         -- BIGSERIAL because this table grows the fastest.
         -- -------------------------------------------------------
         create table gold.fact_sales (
-                sale_key        bigserial       primary key,
-                order_id        varchar(255)    not null,
-                product_id      varchar(255)    not null,
+                sale_key        bigserial       ,
+                order_id        varchar(255)    ,
+                product_id      varchar(255)    ,
+                order_date      date            ,
                 customer_key    int             references gold.dim_customers(customer_key),
                 product_key     int             references gold.dim_products(product_key),
                 date_key        int             references gold.dim_date(date_key),
@@ -93,8 +94,9 @@ begin
                 revenue         numeric(10,2),
                 order_status    varchar(50),
                 created_at_gold timestamp       default current_timestamp,
-                unique (order_id, product_id)   -- deduplication constraint
-        );
+                unique (order_id, product_id,order_date),   -- deduplication constraint
+                primary key (sale_key,order_date)  
+        )partition by range (order_date);
 
 
         -- -------------------------------------------------------
@@ -108,16 +110,19 @@ begin
         -- amount = total from silver payments_daily.
         -- -------------------------------------------------------
         create table gold.fact_payments (
-                payment_key         bigserial       primary key,
-                payment_id          varchar(255)    unique not null,
-                order_id            varchar(255)    not null,
+                payment_key         bigserial       ,
+                payment_id          varchar(255)    ,
+                order_id            varchar(255)    ,
+                payment_date        date            ,
                 customer_key        int             references gold.dim_customers(customer_key),
                 order_date_key      int             references gold.dim_date(date_key),
                 payment_date_key    int             references gold.dim_date(date_key),
                 method              varchar(50),
                 amount              numeric(10,2),
-                created_at_gold     timestamp       default current_timestamp
-        );
+                created_at_gold     timestamp       default current_timestamp,
+                unique (payment_id, payment_date),
+                primary key (payment_key, payment_date)
+        ) partition by range (payment_date);
 
 end;
 $$;
@@ -128,7 +133,39 @@ call gold.create_gold_tables();
 --GOLD DIMENSION + FACT TABLE CREATION -- END--
 ==============================================================
 
+==============================================================
+--GOLD PARTITION PARTMAN PROCEDURES -- START--
+==============================================================
 
+
+create or replace procedure gold.gold_pgpartman()
+language plpgsql as $$
+begin
+
+
+        delete from partman.part_config
+        where parent_table in ('gold.fact_sales', 'gold.fact_payments');
+
+       perform partman.create_parent(
+         p_parent_table => 'gold.fact_sales',
+         p_control => 'order_date',
+         p_interval => '1 month',
+         p_start_partition => '2019-04-01',
+         p_premake => 1
+       );
+
+       perform partman.create_parent(
+         p_parent_table => 'gold.fact_payments',
+         p_control => 'payment_date',
+         p_interval => '1 month',
+         p_start_partition => '2019-04-01',
+         p_premake => 1
+       );
+
+ end;
+ $$;
+
+ call   gold.gold_pgpartman();    
 
 
 ==============================================================
@@ -166,7 +203,7 @@ begin
                 extract(day     from d)::int             as day_of_month,
                 extract(isodow  from d)::int             as day_of_week,
                 to_char(d, 'Day')                        as day_name,
-                extract(isodow  from d) >= 6             as is_weekend
+                extract(isodow  from d) in (5,6)             as is_weekend
         from generate_series(
                 '2015-01-01'::date,
                 '2035-12-31'::date,

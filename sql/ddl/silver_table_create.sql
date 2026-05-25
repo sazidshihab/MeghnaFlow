@@ -58,6 +58,7 @@ BEGIN
                 payment_date date ,
                 method VARCHAR(50),
                 order_id VARCHAR(255),
+                customer_id VARCHAR(255),
                 order_date date,
                 total numeric(10,2),
                 created_at_bronze timestamp ,
@@ -181,6 +182,7 @@ BEGIN
                 payment_date date not null,
                 method VARCHAR(50),
                 order_id VARCHAR(255),
+                customer_id VARCHAR(255),
                 order_date date,
                 total numeric(10,2),
                 created_at_bronze timestamp ,
@@ -192,13 +194,6 @@ BEGIN
 
 
 
-        DELETE FROM partman.part_config
-        WHERE parent_table IN (
-        'silver.customers_raw_p',
-        'silver.orders_raw_p',
-        'silver.order_items_raw_p',
-        'silver.payments_raw_p'
-        );
 
 
 end;
@@ -226,6 +221,17 @@ create or replace procedure silver.pgpartman_silver()
 language plpgsql
 as $$
 begin
+
+
+        
+        DELETE FROM partman.part_config
+        WHERE parent_table IN (
+        'silver.customers_raw_p',
+        'silver.orders_raw_p',
+        'silver.order_items_raw_p',
+        'silver.payments_raw_p'
+        );
+        
         perform partman.create_parent(
                 p_parent_table => 'silver.customers_raw_p',
                 p_control => 'valid_from',
@@ -238,7 +244,7 @@ begin
         perform partman.create_parent(
                 p_parent_table => 'silver.orders_raw_p',
                 p_control => 'order_date',
-                p_interval => '12 months',
+                p_interval => '1 month',
                 p_start_partition => '2019-04-01',
                 p_premake         => 1
         );
@@ -247,7 +253,7 @@ begin
         perform partman.create_parent(
                 p_parent_table => 'silver.order_items_raw_p',
                 p_control => 'order_date',
-                p_interval => '12 months',
+                p_interval => '1 month',
                 p_start_partition => '2019-04-01',
                 p_premake         => 1
         );
@@ -256,7 +262,7 @@ begin
         perform partman.create_parent(
                 p_parent_table => 'silver.payments_raw_p',
                 p_control => 'payment_date',
-                p_interval => '12 months',
+                p_interval => '1 month',
                 p_start_partition => '2019-04-01',
                 p_premake         => 1
         );

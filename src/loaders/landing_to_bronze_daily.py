@@ -62,7 +62,7 @@ table_config = {                                                  #Dictionary of
     {
         "columns":"""
 
-        payment_id, method, order_id, order_date, total, payment_date,source_file_id """,
+        payment_id, method, order_id, customer_id, order_date, total, payment_date,source_file_id """,
         "target_table": "bronze.payments_raw_daily"
     },
 "products" :

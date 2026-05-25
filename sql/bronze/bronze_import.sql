@@ -181,7 +181,7 @@ begin
     
         index_first_time := clock_timestamp();
         CREATE INDEX ON bronze.payments_raw_daily(payment_id, order_id, created_at_bronze DESC)
-        INCLUDE (payment_date, method, order_date, total);
+        INCLUDE (payment_date, method, order_date, total, customer_id);
         index_time := clock_timestamp()-index_first_time;
 
         bronze_daily_copy_time := (select max(executing_time) from operational_log.bronze_ingest_log where table_name='payments' and ingestion_id=(select ingestion_id from operational_log.ingestion_id) and ingestion_for='bronze_daily') * interval '1 second';

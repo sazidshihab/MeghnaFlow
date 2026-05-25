@@ -9,8 +9,8 @@ fake = Faker()
 # -----------------------
 # CONFIG (adjust size)
 # -----------------------
-N_CUSTOMERS = 100000
-N_PRODUCTS = 100000
+N_CUSTOMERS = 1000
+N_PRODUCTS = 1000
 N_ORDERS = 20000000   # reduce if your Mac struggles
 
 # -----------------------
@@ -29,7 +29,7 @@ food_catalog = {
 product_names = list(food_catalog.keys())
 
 products = pd.DataFrame({
-    "product_id": [f"P{i}" for i in range(N_PRODUCTS,200000)],
+    "product_id": [f"P{i}" for i in range(200500,201500)],
     "name": np.random.choice(product_names, N_PRODUCTS)
 })
 
@@ -40,7 +40,7 @@ products["price"] = products["name"].map(lambda x: food_catalog[x][1])
 # 2. CUSTOMERS
 # -----------------------
 customers = pd.DataFrame({
-    "customer_id": [f"C{i}" for i in range(N_CUSTOMERS,200000)],
+    "customer_id": [f"C{i}" for i in range(200300,201300)],
     "name": [fake.name() for _ in range(N_CUSTOMERS)],
     "signup_date": pd.to_datetime(
         np.random.randint(16000, 19000, N_CUSTOMERS), unit="D"
@@ -53,12 +53,12 @@ customers = pd.DataFrame({
 customer_ids = customers["customer_id"].values
 
 orders = pd.DataFrame({
-    "order_id": [f"O{i}" for i in range(N_ORDERS,40000000)],
+    "order_id": [f"O{i}" for i in range(3500000,23500000)],
     "customer_id": np.random.choice(customer_ids, N_ORDERS),
 })
 
 orders["order_date"] = pd.to_datetime(
-    np.random.randint(18000, 20000, N_ORDERS), unit="D"
+    np.random.randint(18030, 18060, N_ORDERS), unit="D"
 )
 
 orders["status"] = np.random.choice(
@@ -95,13 +95,14 @@ order_items["total"] = order_items["quantity"] * order_items["unit_price"]
 # 5. PAYMENTS
 # -----------------------
 payments_base = order_items.groupby("order_id")["total"].sum().reset_index()
-payments_base = payments_base.merge(orders[["order_id", "order_date"]], on="order_id")
+payments_base = payments_base.merge(orders[["order_id", "customer_id", "order_date"]], on="order_id")
 
 n = len(payments_base)
 payments = pd.DataFrame({
     "payment_id":   [f"PAY{i}" for i in range(n)],
     "method":       np.random.choice(["card", "Card", "cash", "CASH"], n),
     "order_id":     payments_base["order_id"].values,
+    "customer_id":  payments_base["customer_id"].values,
     "order_date":   payments_base["order_date"].values,
     "total":        payments_base["total"].values,
     "payment_date": payments_base["order_date"].values + pd.Timedelta(days=1),
@@ -116,14 +117,12 @@ payments.loc[mask, "total"] = None
 # -----------------------
 products.to_csv("products_raw.csv", index=False)
 customers.to_csv("customers_raw.csv", index=False)
-orders.to_csv("orders_raw.csv", index=False)
-order_items.to_csv("order_items_raw.csv", index=False)
-payments.to_csv("payments_raw.csv", index=False)
+orders.to_csv("orders_raw_19-20.csv", index=False)
+order_items.to_csv("order_items_raw19_20.csv", index=False)
+payments.to_csv("payments_raw_19_20.csv", index=False)
 
 print("✅ All datasets generated successfully!")
 
-import pandas as pd
-data=pd.read_csv("payments_raw.csv").head()
-print(data)
+
 
 # %%

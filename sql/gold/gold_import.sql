@@ -24,9 +24,6 @@ begin
         create index if not exists idx_fact_sales_date_key
             on gold.fact_sales(date_key);
 
-        create index if not exists idx_fact_sales_order_id
-            on gold.fact_sales(order_id);
-
         create index if not exists idx_fact_payments_customer_key
             on gold.fact_payments(customer_key);
 
@@ -107,6 +104,8 @@ begin
 end;
 $$;
 
+call gold.load_gold_dim_customers();
+
 ==============================================================
 --GOLD LOAD: DIM_CUSTOMERS -- END--
 ==============================================================
@@ -170,6 +169,8 @@ begin
 end;
 $$;
 
+call gold.load_gold_dim_products();
+
 ==============================================================
 --GOLD LOAD: DIM_PRODUCTS -- END--
 ==============================================================
@@ -202,12 +203,13 @@ begin
 
         with upserted as (
                 insert into gold.fact_sales(
-                        order_id, product_id, customer_key, product_key, date_key,
+                        order_id, product_id,order_date, customer_key, product_key, date_key,
                         quantity, unit_price, revenue, order_status, created_at_gold
                 )
                 select
                         oi.order_id,
                         oi.product_id,
+                        o.order_date,   
                         dc.customer_key,
                         dp.product_key,
                         dd.date_key,
@@ -221,7 +223,7 @@ begin
                 left join gold.dim_customers  dc on  dc.customer_id = o.customer_id
                 left join gold.dim_products   dp on  dp.product_id  = oi.product_id
                 left join gold.dim_date       dd on  dd.full_date   = o.order_date
-                on conflict (order_id, product_id) do update
+                on conflict (order_id, product_id, order_date) do update
                 set
                         order_status = excluded.order_status,
                         quantity     = excluded.quantity,
@@ -248,6 +250,8 @@ begin
 
 end;
 $$;
+
+call gold.load_gold_fact_sales();
 
 ==============================================================
 --GOLD LOAD: FACT_SALES -- END--
@@ -282,12 +286,13 @@ begin
 
         with upserted as (
                 insert into gold.fact_payments(
-                        payment_id, order_id, customer_key,
+                        payment_id, order_id, payment_date, customer_key,
                         order_date_key, payment_date_key, method, amount, created_at_gold
                 )
                 select
                         p.payment_id,
                         p.order_id,
+                        p.payment_date,
                         dc.customer_key,
                         od.date_key     as order_date_key,
                         pd.date_key     as payment_date_key,
@@ -295,9 +300,7 @@ begin
                         p.total         as amount,
                         current_timestamp
                 from silver.payments_daily       p
-                left join silver.orders_raw_p    o  on  o.order_id   = p.order_id
-                                                   and o.order_date  = p.order_date
-                left join gold.dim_customers     dc on  dc.customer_id = o.customer_id
+                left join gold.dim_customers     dc on  dc.customer_id = p.customer_id
                 left join gold.dim_date          od on  od.full_date   = p.order_date
                 left join gold.dim_date          pd on  pd.full_date   = p.payment_date
                 on conflict (payment_id) do nothing
@@ -317,6 +320,8 @@ begin
 
 end;
 $$;
+
+call gold.load_gold_fact_payments();
 
 ==============================================================
 --GOLD LOAD: FACT_PAYMENTS -- END--
