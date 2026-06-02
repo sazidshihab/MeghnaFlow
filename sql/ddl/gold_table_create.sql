@@ -86,16 +86,16 @@ begin
                 order_id        bigint          ,
                 product_id      bigint          ,
                 order_date      date            ,
-                customer_key    int             references gold.dim_customers(customer_key),
-                product_key     int             references gold.dim_products(product_key),
-                date_key        int             references gold.dim_date(date_key),
+                customer_key    int             not null    references gold.dim_customers(customer_key),
+                product_key     int             not null    references gold.dim_products(product_key),
+                date_key        int             not null    references gold.dim_date(date_key),
                 quantity        numeric(10,2),
                 unit_price      numeric(10,2),
                 revenue         numeric(10,2),
                 order_status    varchar(50),
                 created_at_gold timestamp       default current_timestamp,
-                unique (order_id, product_id,order_date),   -- deduplication constraint
-                primary key (sale_key,order_date)  
+                unique (order_id, product_id,order_date),
+                primary key (sale_key,order_date)
         )partition by range (order_date);
 
 
@@ -114,15 +114,24 @@ begin
                 payment_id          bigint          ,
                 order_id            bigint          ,
                 payment_date        date            ,
-                customer_key        int             references gold.dim_customers(customer_key),
-                order_date_key      int             references gold.dim_date(date_key),
-                payment_date_key    int             references gold.dim_date(date_key),
+                customer_key        int             not null    references gold.dim_customers(customer_key),
+                order_date_key      int             not null    references gold.dim_date(date_key),
+                payment_date_key    int             not null    references gold.dim_date(date_key),
                 method              varchar(50),
                 amount              numeric(10,2),
                 created_at_gold     timestamp       default current_timestamp,
                 unique (payment_id, payment_date),
                 primary key (payment_key, payment_date)
         ) partition by range (payment_date);
+
+        -- Unknown members: catch-all for facts whose dim member was quarantined
+        insert into gold.dim_customers (customer_key, customer_id, name, signup_date, first_seen_at)
+        values (-1, -1, 'Unknown', null, current_timestamp)
+        on conflict (customer_id) do nothing;
+
+        insert into gold.dim_products (product_key, product_id, name, category, price)
+        values (-1, -1, 'Unknown', 'Unknown', null)
+        on conflict (product_id) do nothing;
 
 end;
 $$;
@@ -209,6 +218,11 @@ begin
                 '2035-12-31'::date,
                 '1 day'
         ) as d;
+
+        -- Unknown member: used when order_date or payment_date could not be resolved
+        insert into gold.dim_date (date_key, full_date, year, quarter, month, month_name, week, day_of_month, day_of_week, day_name, is_weekend)
+        values (-1, '1900-01-01', 0, 0, 0, 'Unknown', 0, 0, 0, 'Unknown', false)
+        on conflict (date_key) do nothing;
 
 end;
 $$;
