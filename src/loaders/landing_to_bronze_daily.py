@@ -3,7 +3,7 @@ import psycopg2
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-import shutil
+
 import csv
 
 
@@ -38,6 +38,25 @@ def log(table_names):                                               #This table 
     cur.close()
     return ingestion_id
 
+
+
+EXPECTED_HEADERS = {
+    "customers":   ["customer_id", "name", "signup_date"],
+    "orders":      ["order_id", "customer_id", "order_date", "status"],
+    "order_items": ["order_id", "product_id", "quantity", "unit_price", "total"],
+    "payments":    ["payment_id", "method", "order_id", "customer_id", "order_date", "total", "payment_date"],
+    "products":    ["product_id", "name", "category", "price"],
+}
+
+def validate_headers(csv_file, table_name):
+    with open(csv_file, 'r') as f:
+        actual = next(csv.reader(f))
+    expected = EXPECTED_HEADERS[table_name]
+    if actual != expected:
+        raise ValueError(
+            f"Schema drift in {csv_file.name}: "
+            f"expected {expected}, got {actual}"
+        )
 
 
 table_config = {                                                  #Dictionary of table name and its configuration
@@ -107,7 +126,6 @@ def csv_generator(file, table_name, row_counter):
 def file_loaded(csv_files,ingestion_id):              #Function to copy data from landing to bronze
 
         table_name = extract_table_name(csv_files.stem)
-
 
         config=table_config.get(table_name)
 
@@ -180,8 +198,13 @@ def main():
     time1=time.time()
 
     landing_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Landing')
-    csv_files = list(landing_folder.glob("*.csv"))  
+    csv_files = list(landing_folder.glob("*.csv"))
     #Listing all files in landing folder
+
+    for csv_file in csv_files:                                    #All-or-nothing: validate every file before touching DB
+        table_name = extract_table_name(csv_file.stem)
+        if table_name:
+            validate_headers(csv_file, table_name)
 
     ingestion_id = log(csv_files)                                 #Calling log function
 
@@ -193,15 +216,10 @@ def main():
           
           
           print(f"Total time taken: {time.time()-time1}")
-          #move file from landing to archive after loading
-          archive_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Archive')
-          for csv_file in csv_files:
-              shutil.move(csv_file, archive_folder)
 
-          print("ALL FILES MOVED TO ARCHIVE FOLDER")
-          
     except Exception as e:
         print(f"An error occurred: {e}")
+        raise
        
 
 

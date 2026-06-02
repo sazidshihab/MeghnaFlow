@@ -11,7 +11,7 @@ fake = Faker()
 # -----------------------
 N_CUSTOMERS = 1000
 N_PRODUCTS = 1000
-N_ORDERS = 20000000   # reduce if your Mac struggles
+N_ORDERS = 200000   # reduce if your Mac struggles
 
 # -----------------------
 # 1. PRODUCTS
@@ -53,7 +53,7 @@ customers = pd.DataFrame({
 customer_ids = customers["customer_id"].values
 
 orders = pd.DataFrame({
-    "order_id": list(range(3500000,23500000)),
+    "order_id": list(range(23500000,23700000)),
     "customer_id": np.random.choice(customer_ids, N_ORDERS),
 })
 

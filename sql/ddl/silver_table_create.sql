@@ -69,7 +69,7 @@ BEGIN
 
         drop table if exists silver.products_daily;
         create unlogged table silver.products_daily (
-                product_id varchar(100) ,
+                product_id bigint,
                 name VARCHAR(255),
                 category VARCHAR(255),
                 price numeric(10,2),

@@ -33,6 +33,7 @@ def run_procedure(name):
     except Exception as e:
         print(f"An error occurred in {name}: {e}")
         conn.close()
+        raise
 
 
 def main():
@@ -45,6 +46,7 @@ def main():
         print(f"Dims loaded. Elapsed: {time.time() - time1:.2f}s")
     except Exception as e:
         print(f"Dim load error: {e}")
+        raise
 
     # Phase 2: facts in parallel (require dims to exist first)
     try:
@@ -53,6 +55,7 @@ def main():
         print(f"Facts loaded. Total gold time: {time.time() - time1:.2f}s")
     except Exception as e:
         print(f"Fact load error: {e}")
+        raise
 
 
 if __name__ == "__main__":

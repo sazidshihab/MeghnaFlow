@@ -69,7 +69,8 @@ def run_procedures(name):
            conn.close()
 
        except Exception as e:
-           print(f"An error occurred: {e}")  
+           print(f"An error occurred: {e}")
+           raise
 
 
 
@@ -84,6 +85,7 @@ def main():
           print(f"Total time taken: {time.time()-time1}")
     except Exception as e:
         print(f"An error occurred: {e}")
+        raise
 
     try:
         time1=time.time()
@@ -92,6 +94,7 @@ def main():
           print(f"Total time taken: {time.time()-time1}")
     except Exception as e:
         print(f"An error occurred: {e}")
+        raise
 
 
 if __name__ == "__main__":
