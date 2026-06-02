@@ -111,12 +111,15 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
         WITH (
             FORMAT CSV
         )
-        """                                   #Copying data from landing to bronze
+        """ 
+        
+        
+                                          #Copying data from landing to bronze
 
         log_sql= f"""
         insert into operational_log.bronze_ingest_log(ingestion_id,source_file_name,table_name,ingestion_for,row_count,executing_time)
         values(%s,%s,%s,'bronze_raw',0,NULL)
-        RETURNING source_file_id;;
+        RETURNING source_file_id;
         """                                   #Inserting ingestion log (row_count updated after copy)
 
 
@@ -128,7 +131,10 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
         user="sazid",
         )
 
-        cur = conn.cursor()                           #Executing log query
+
+        cur = conn.cursor()    
+        
+                               #Executing log query
         cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name))
         table_id=cur.fetchone()[0]
 
@@ -167,24 +173,41 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
         conn.close()    
 
 
+def get_new_files(csv_files):
+    conn = psycopg2.connect(host="localhost", port=5432, database="Demo_warehouse", user="sazid")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT source_file_name FROM operational_log.bronze_ingest_log
+        WHERE source_file_name = ANY(%s) AND ingestion_for = 'bronze_raw'
+        """,
+        ([f.name for f in csv_files],)
+    )
+    already_ingested = {row[0] for row in cur.fetchall()}
+    cur.close()
+    conn.close()
+    return [f for f in csv_files if f.name not in already_ingested]
+
+
 def main():
 
-
-    time1=time.time()
+    time1 = time.time()
 
     landing_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Landing')
-    csv_files = list(landing_folder.glob("*.csv"))  
-    #Listing all files in landing folder
+    csv_files = list(landing_folder.glob("*.csv"))
 
-    ingestion_id = log()                                 #Calling log function
+    new_files = get_new_files(csv_files)
 
+    if not new_files:
+        print("All files already ingested. Nothing to do.")
+        return
 
-    #Multithreading with 5 threads
-    try: 
-        with ThreadPoolExecutor(max_workers=5) as executor:              
-          list(executor.map(file_loaded, csv_files, [ingestion_id] * len(csv_files)))     
+    ingestion_id = log()
 
-          print(f"Total time taken: {time.time()-time1}")
+    try:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            list(executor.map(file_loaded, new_files, [ingestion_id] * len(new_files)))
+        print(f"Total time taken: {time.time()-time1}")
     except Exception as e:
         print(f"An error occurred: {e}")
        

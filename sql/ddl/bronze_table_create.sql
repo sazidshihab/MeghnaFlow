@@ -67,6 +67,10 @@ BEGIN
                     source_file_id text
                 );
 
+
+        call  bronze.bronze_raw_autovacuum_off(); 
+        
+
 end;
 $$;
 
@@ -106,6 +110,8 @@ BEGIN
         
         drop table if exists bronze.payments_raw_daily;
         create UNLOGGED table bronze.payments_raw_daily(payment_id bigint, method text, order_id bigint, customer_id bigint, order_date text, total text, payment_date text, created_at_bronze timestamp default current_timestamp, source_file_id text);
+
+        call  bronze.bronze_daily_autovacuum_off();
          
 end;
 $$;

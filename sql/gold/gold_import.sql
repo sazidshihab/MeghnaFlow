@@ -65,9 +65,26 @@ declare
         first_time          timestamp;
         load_time           interval;
         rows_upserted       int;
+        v_bronze_count      int;
+        v_silver_count      int;
 begin
 
         local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+
+        select count(source_file_id) into v_bronze_count
+        from operational_log.bronze_ingest_log
+        where table_name = 'customers'
+        and ingestion_for = 'bronze_daily'
+        and ingestion_id = local_ingestion_id;
+
+        select count(distinct source_file_id) into v_silver_count
+        from silver.customers_daily;
+
+        if v_silver_count < v_bronze_count then
+            raise exception 'Gate failed [dim_customers]: customers — %/% source files reached silver_daily',
+                v_silver_count, v_bronze_count;
+        end if;
+
         first_time := clock_timestamp();
 
         with upserted as (
@@ -129,9 +146,26 @@ declare
         first_time          timestamp;
         load_time           interval;
         rows_upserted       int;
+        v_bronze_count      int;
+        v_silver_count      int;
 begin
 
         local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+
+        select count(source_file_id) into v_bronze_count
+        from operational_log.bronze_ingest_log
+        where table_name = 'products'
+        and ingestion_for = 'bronze_daily'
+        and ingestion_id = local_ingestion_id;
+
+        select count(distinct source_file_id) into v_silver_count
+        from silver.products_daily;
+
+        if v_silver_count < v_bronze_count then
+            raise exception 'Gate failed [dim_products]: products — %/% source files reached silver_daily',
+                v_silver_count, v_bronze_count;
+        end if;
+
         first_time := clock_timestamp();
 
         with upserted as (
@@ -197,9 +231,40 @@ declare
         first_time          timestamp;
         load_time           interval;
         rows_upserted       int;
+        v_bronze_count      int;
+        v_silver_count      int;
 begin
 
         local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+
+        select count(source_file_id) into v_bronze_count
+        from operational_log.bronze_ingest_log
+        where table_name = 'orders'
+        and ingestion_for = 'bronze_daily'
+        and ingestion_id = local_ingestion_id;
+
+        select count(distinct source_file_id) into v_silver_count
+        from silver.orders_daily;
+
+        if v_silver_count < v_bronze_count then
+            raise exception 'Gate failed [fact_sales]: orders — %/% source files reached silver_daily',
+                v_silver_count, v_bronze_count;
+        end if;
+
+        select count(source_file_id) into v_bronze_count
+        from operational_log.bronze_ingest_log
+        where table_name = 'order_items'
+        and ingestion_for = 'bronze_daily'
+        and ingestion_id = local_ingestion_id;
+
+        select count(distinct source_file_id) into v_silver_count
+        from silver.order_items_daily;
+
+        if v_silver_count < v_bronze_count then
+            raise exception 'Gate failed [fact_sales]: order_items — %/% source files reached silver_daily',
+                v_silver_count, v_bronze_count;
+        end if;
+
         first_time := clock_timestamp();
 
         with upserted as (
@@ -280,9 +345,26 @@ declare
         first_time          timestamp;
         load_time           interval;
         rows_upserted       int;
+        v_bronze_count      int;
+        v_silver_count      int;
 begin
 
         local_ingestion_id := (select ingestion_id from operational_log.ingestion_id);
+
+        select count(source_file_id) into v_bronze_count
+        from operational_log.bronze_ingest_log
+        where table_name = 'payments'
+        and ingestion_for = 'bronze_daily'
+        and ingestion_id = local_ingestion_id;
+
+        select count(distinct source_file_id) into v_silver_count
+        from silver.payments_daily;
+
+        if v_silver_count < v_bronze_count then
+            raise exception 'Gate failed [fact_payments]: payments — %/% source files reached silver_daily',
+                v_silver_count, v_bronze_count;
+        end if;
+
         first_time := clock_timestamp();
 
         with upserted as (

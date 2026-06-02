@@ -16,18 +16,23 @@ def log(table_names):                                               #This table 
         user="sazid",
         )
                                                                      #Insert new ingestion id on each new ingestion
-    sql= f"""                                                  
+    sql= """
     select ingestion_id from operational_log.ingestion_id;
     """
 
-
-    sql_truncate = f"""
-    call bronze.create_unlogged_bronze_daily_tables();  
+    sql_truncate = """
+    call bronze.create_unlogged_bronze_daily_tables();
     """                                                             #resetting bronze daily table
     cur = conn.cursor()
     cur.execute(sql_truncate)
     cur.execute(sql)
     ingestion_id = cur.fetchone()[0]
+
+    cur.execute("""
+        DELETE FROM operational_log.bronze_ingest_log
+        WHERE ingestion_for = 'bronze_daily'
+        AND ingestion_id = %s
+    """, (ingestion_id,))
 
     conn.commit()
     cur.close()
