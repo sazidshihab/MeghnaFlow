@@ -138,6 +138,8 @@ BEGIN
         flagged_at timestamp default current_timestamp,
         raw_row JSONB
     );
+    
+    create INDEX qurantine_indx ON operational_log.quarantine (ingestion_id,table_name,reject_reason);
 END;
 $$;
 

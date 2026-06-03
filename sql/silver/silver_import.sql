@@ -197,7 +197,7 @@ BEGIN
                 first_time := clock_timestamp();
 
                 insert into silver.orders_daily(order_id,customer_id,order_date,status,created_at_bronze,source_file_id)
-                select distinct on(order_id,customer_id)
+                select distinct on(order_id)
                         order_id,
                         customer_id,
                         case when nullif(trim(order_date),'') ~ '^\d{4}-\d{2}-\d{2}$'
@@ -207,7 +207,7 @@ BEGIN
                         created_at_bronze,
                         source_file_id
                 from bronze.orders_raw_daily order by
-                order_id, customer_id, created_at_bronze desc;
+                order_id, created_at_bronze desc;
 
                 get diagnostics after_dup_row_count = row_count;
                 insert_time := clock_timestamp() - first_time;
@@ -221,7 +221,7 @@ BEGIN
                 first_time := clock_timestamp();
 
                 alter table silver.orders_daily
-                add constraint order_customer_pk_daily primary key (order_id, customer_id);
+                add constraint order_id_pk_daily primary key (order_id);
 
                 pk_executing_time := clock_timestamp() - first_time;
 

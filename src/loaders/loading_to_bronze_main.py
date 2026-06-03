@@ -149,46 +149,41 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
         user="sazid",
         )
 
+        try:
+            cur = conn.cursor()
+            cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name))
+            table_id=cur.fetchone()[0]
 
-        cur = conn.cursor()    
-        
-                               #Executing log query
-        cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name))
-        table_id=cur.fetchone()[0]
+            row_counter = [0]
+            with open(csv_files, 'r') as f:
 
+                generator=csv_generator(f,table_id,row_counter)
 
+                class FileWrapper:
+                    def __init__(self,generator):
+                        self.generator = generator
+                    def read(self, _size=-1):
+                        try:
+                            chunk =[]
+                            for _ in range(150000):
+                                chunk.append(next(self.generator))
+                        except StopIteration:
+                            pass
+                        return ''.join(chunk)
 
-        row_counter = [0]                             #Counter incremented inside generator — no separate file scan needed
-        with open(csv_files, 'r') as f:              #Opening file but not loading to RAM
+                time1 = time.time()
+                cur.copy_expert(sql, FileWrapper(generator))
+                copy_time = time.time() - time1
+                cur.execute(
+                    "update operational_log.bronze_ingest_log set executing_time = %s, row_count = %s  where source_file_id = %s",
+                    (copy_time, row_counter[0], table_id)
+                )
+                conn.commit()
+                print(f"Data from {csv_files.name} has been loaded into {config['target_table']} in {copy_time} seconds")
 
-            generator=csv_generator(f,table_id,row_counter)
-
-            class FileWrapper:                   #Warp Class, so generator returned rows can be send as file to copy quer
-                def __init__(self,generator):
-                    self.generator = generator
-                def read(self, _size=-1):          #This method called by copy_expert auto until all rows are copied
-                    try:
-                        chunk =[]
-                        for _ in range(150000):
-                            chunk.append(next(self.generator))  #Instead of row by row we are sending a chunk of 150000 rows to copy
-
-                    except StopIteration:
-                        pass                                  # Return empty string to signal end of file
-                    return ''.join(chunk)
-
-
-            time1 = time.time()                                #Start timing just before COPY — excludes connection + log insert overhead
-            cur.copy_expert(sql, FileWrapper(generator))       #Executing copy query
-            copy_time = time.time() - time1                   #Capture immediately after COPY completes
-            cur.execute(
-                "update operational_log.bronze_ingest_log set executing_time = %s, row_count = %s  where source_file_id = %s",
-                (copy_time, row_counter[0], table_id)
-            )
-            conn.commit()
-            print(f"Data from {csv_files.name} has been loaded into {config['target_table']} in {copy_time} seconds")
-
-        cur.close()
-        conn.close()    
+            cur.close()
+        finally:
+            conn.close()
 
 
 def get_new_files(csv_files):

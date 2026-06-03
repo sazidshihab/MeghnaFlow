@@ -36,6 +36,8 @@ def run_procedure(name):
         conn.close()
     except Exception as e:
         print(f"An error occurred: {e}")
+        conn.close()
+        raise
 
 
 

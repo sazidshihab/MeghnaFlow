@@ -78,6 +78,9 @@ BEGIN
                 source_file_id text
         );
 
+
+        call  silver.silver_daily_autovacuum_off();
+
 end;
 $$;
 

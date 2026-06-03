@@ -8,35 +8,36 @@ import csv
 
 
 
-def log(table_names):                                               #This table only run once, just to get ingestion id and truncate daily table
+def log():
     conn = psycopg2.connect(
         host="localhost",
         port=5432,
         database="Demo_warehouse",
         user="sazid",
         )
-                                                                     #Insert new ingestion id on each new ingestion
-    sql= """
-    select ingestion_id from operational_log.ingestion_id;
-    """
+    try:
+        sql= """
+        select ingestion_id from operational_log.ingestion_id;
+        """
+        sql_truncate = """
+        call bronze.create_unlogged_bronze_daily_tables();
+        """
+        cur = conn.cursor()
+        cur.execute(sql_truncate)
+        cur.execute(sql)
+        ingestion_id = cur.fetchone()[0]
 
-    sql_truncate = """
-    call bronze.create_unlogged_bronze_daily_tables();
-    """                                                             #resetting bronze daily table
-    cur = conn.cursor()
-    cur.execute(sql_truncate)
-    cur.execute(sql)
-    ingestion_id = cur.fetchone()[0]
+        cur.execute("""
+            DELETE FROM operational_log.bronze_ingest_log
+            WHERE ingestion_for = 'bronze_daily'
+            AND ingestion_id = %s
+        """, (ingestion_id,))
 
-    cur.execute("""
-        DELETE FROM operational_log.bronze_ingest_log
-        WHERE ingestion_for = 'bronze_daily'
-        AND ingestion_id = %s
-    """, (ingestion_id,))
-
-    conn.commit()
-    cur.close()
-    return ingestion_id
+        conn.commit()
+        cur.close()
+        return ingestion_id
+    finally:
+        conn.close()
 
 
 
@@ -141,10 +142,8 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
         log_sql= f"""
         insert into operational_log.bronze_ingest_log(ingestion_id,source_file_name,table_name,ingestion_for,row_count,executing_time)
         values(%s,%s,%s,'bronze_daily',0,NULL)
-        RETURNING source_file_id;;
-        """                                   #Inserting ingestion log (row_count updated after copy)
-
-
+        RETURNING source_file_id;
+        """
 
         conn = psycopg2.connect(
         host="localhost",
@@ -153,43 +152,41 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
         user="sazid",
         )
 
-        cur = conn.cursor()                           #Executing log query
-        cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name))
-        table_id=cur.fetchone()[0]
+        try:
+            cur = conn.cursor()
+            cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name))
+            table_id=cur.fetchone()[0]
 
+            row_counter = [0]
+            with open(csv_files, 'r') as f:
 
+                generator=csv_generator(f,table_id,row_counter)
 
-        row_counter = [0]                             #Counter incremented inside generator — no separate file scan needed
-        with open(csv_files, 'r') as f:              #Opening file but not loading to RAM
+                class FileWrapper:
+                    def __init__(self,generator):
+                        self.generator = generator
+                    def read(self, _size=-1):
+                        try:
+                            chunk =[]
+                            for _ in range(150000):
+                                chunk.append(next(self.generator))
+                        except StopIteration:
+                            pass
+                        return ''.join(chunk)
 
-            generator=csv_generator(f,table_id,row_counter)
+                time1 = time.time()
+                cur.copy_expert(sql, FileWrapper(generator))
+                copy_time = time.time() - time1
+                cur.execute(
+                    "update operational_log.bronze_ingest_log set executing_time = %s, row_count = %s where source_file_id = %s",
+                    (copy_time, row_counter[0], table_id)
+                )
+                conn.commit()
+                print(f"Data from {csv_files.name} has been loaded into {config['target_table']} in {copy_time} seconds")
 
-            class FileWrapper:                   #Warp Class, so generator returned rows can be send as file to copy quer
-                def __init__(self,generator):
-                    self.generator = generator
-                def read(self, size=-1):          #This method called by copy_expert auto until all rows are copied
-                    try:
-                        chunk =[]
-                        for _ in range(150000):
-                            chunk.append(next(self.generator))  #Instead of row by row we are sending a chunk of 150000 rows to copy
-
-                    except StopIteration:
-                        pass                                  # Return empty string to signal end of file
-                    return ''.join(chunk)
-
-
-            time1 = time.time()                                #Start timing just before COPY — excludes connection + log insert overhead
-            cur.copy_expert(sql, FileWrapper(generator))       #Executing copy query
-            copy_time = time.time() - time1                   #Capture immediately after COPY completes
-            cur.execute(
-                "update operational_log.bronze_ingest_log set executing_time = %s, row_count = %s where source_file_id = %s",
-                (copy_time, row_counter[0], table_id)
-            )
-            conn.commit()
-            print(f"Data from {csv_files.name} has been loaded into {config['target_table']} in {copy_time} seconds")
-
-        cur.close()
-        conn.close()    
+            cur.close()
+        finally:
+            conn.close()
 
 
 def main():
@@ -206,7 +203,7 @@ def main():
         if table_name:
             validate_headers(csv_file, table_name)
 
-    ingestion_id = log(csv_files)                                 #Calling log function
+    ingestion_id = log()
 
 
                                                                #Multithreading with 5 threads

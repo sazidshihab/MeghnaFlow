@@ -1,6 +1,7 @@
 import psycopg2
 import time
 from concurrent.futures import ThreadPoolExecutor
+from loaders.quarantine_threshhold_check import main as quarantine_threshold_check
 
 
 procedures_daily = [
@@ -13,7 +14,7 @@ procedures_daily = [
 
 procedures_raw =[
       "silver.ingest_silver_raw_products()",
-      " silver.ingest_silver_raw_customers()",
+      "silver.ingest_silver_raw_customers()",
       "silver.ingest_silver_raw_payments()",
       "silver.ingest_silver_raw_order_items()",
       "silver.ingest_silver_raw_orders()"
@@ -27,24 +28,23 @@ def log():
         database="Demo_warehouse",
         user="sazid",
     )
+    try:
+        cur = conn.cursor()
+        cur.execute("select ingestion_id from operational_log.ingestion_id;")
+        ingestion_id = cur.fetchone()[0]
 
-    sql = f"""
-    select ingestion_id from operational_log.ingestion_id;
-    """
+        cur.execute("call silver.create_silver_daily_tables();")
 
-    cur = conn.cursor()
-    cur.execute(sql)
-    ingestion_id = cur.fetchone()[0]
+        cur.execute(
+            "DELETE FROM operational_log.quarantine WHERE ingestion_id = %s",
+            (ingestion_id,)
+        )
 
-    sql = f"""
-    call silver.create_silver_daily_tables();
-    """
-
-    cur.execute(sql)
-
-    conn.commit()
-    cur.close()
-    return ingestion_id
+        conn.commit()
+        cur.close()
+        return ingestion_id
+    finally:
+        conn.close()
 
 
 def run_procedures(name):
@@ -86,6 +86,8 @@ def main():
     except Exception as e:
         print(f"An error occurred: {e}")
         raise
+
+    quarantine_threshold_check()
 
     try:
         time1=time.time()
