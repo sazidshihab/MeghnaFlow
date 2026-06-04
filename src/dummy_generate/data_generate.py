@@ -11,7 +11,7 @@ fake = Faker()
 # -----------------------
 N_CUSTOMERS = 5000
 N_PRODUCTS = 3000
-N_ORDERS = 20000000  # reduce if your Mac struggles
+N_ORDERS = 2000000  # reduce if your Mac struggles
 
 # -----------------------
 # 1. PRODUCTS
@@ -53,12 +53,12 @@ customers = pd.DataFrame({
 customer_ids = customers["customer_id"].values
 
 orders = pd.DataFrame({
-    "order_id": list(range(60000000,60000000+N_ORDERS)),
+    "order_id": list(range(80000000,80000000+N_ORDERS)),
     "customer_id": np.random.choice(customer_ids, N_ORDERS),
 })
 
 orders["order_date"] = pd.to_datetime(
-    np.random.randint(20000, 20500, N_ORDERS), unit="D"
+    np.random.randint(20500, 20600, N_ORDERS), unit="D"
 )
 
 orders["status"] = np.random.choice(
@@ -99,7 +99,7 @@ payments_base = payments_base.merge(orders[["order_id", "customer_id", "order_da
 
 n = len(payments_base)
 payments = pd.DataFrame({
-    "payment_id":   list(range(80000000, 80000000+n)),
+    "payment_id":   list(range(100000000, 100000000+n)),
     "method":       np.random.choice(["card", "Card", "cash", "CASH"], n),
     "order_id":     payments_base["order_id"].values,
     "customer_id":  payments_base["customer_id"].values,
@@ -115,11 +115,11 @@ payments.loc[mask, "total"] = None
 # -----------------------
 # SAVE TO CSV
 # -----------------------
-products.to_csv("products_raw_03_06_25v6.csv", index=False)
-customers.to_csv("customers_raw_03_06_25v6.csv", index=False)
-orders.to_csv("orders_raw_03_06_25v6.csv", index=False)
-order_items.to_csv("order_items_raw_03_06_25v6.csv", index=False)
-payments.to_csv("payments_raw_03_06_25v6.csv", index=False)
+products.to_csv("products_raw_03_06_25v8.csv", index=False)
+customers.to_csv("customers_raw_03_06_25v8.csv", index=False)
+orders.to_csv("orders_raw_03_06_25v8.csv", index=False)
+order_items.to_csv("order_items_raw_03_06_25v8.csv", index=False)
+payments.to_csv("payments_raw_03_06_25v8.csv", index=False)
 
 print("✅ All datasets generated successfully!")
 
