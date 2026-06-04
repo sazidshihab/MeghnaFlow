@@ -9,9 +9,9 @@ fake = Faker()
 # -----------------------
 # CONFIG (adjust size)
 # -----------------------
-N_CUSTOMERS = 500
-N_PRODUCTS = 300
-N_ORDERS = 5000000  # reduce if your Mac struggles
+N_CUSTOMERS = 5000
+N_PRODUCTS = 3000
+N_ORDERS = 20000000  # reduce if your Mac struggles
 
 # -----------------------
 # 1. PRODUCTS
@@ -29,7 +29,7 @@ food_catalog = {
 product_names = list(food_catalog.keys())
 
 products = pd.DataFrame({
-    "product_id": list(range(200000,200000+N_PRODUCTS)),
+    "product_id": list(range(213000,213000+N_PRODUCTS)),
     "name": np.random.choice(product_names, N_PRODUCTS)
 })
 
@@ -40,10 +40,10 @@ products["price"] = products["name"].map(lambda x: food_catalog[x][1])
 # 2. CUSTOMERS
 # -----------------------
 customers = pd.DataFrame({
-    "customer_id": list(range(205000,205000+N_CUSTOMERS)),
+    "customer_id": list(range(210000,210000+N_CUSTOMERS)),
     "name": [fake.name() for _ in range(N_CUSTOMERS)],
     "signup_date": pd.to_datetime(
-        np.random.randint(18000, 19000, N_CUSTOMERS), unit="D"
+        np.random.randint(18000, 20100, N_CUSTOMERS), unit="D"
     )
 })
 
@@ -53,12 +53,12 @@ customers = pd.DataFrame({
 customer_ids = customers["customer_id"].values
 
 orders = pd.DataFrame({
-    "order_id": list(range(30000000,30000000+N_ORDERS)),
+    "order_id": list(range(40000000,40000000+N_ORDERS)),
     "customer_id": np.random.choice(customer_ids, N_ORDERS),
 })
 
 orders["order_date"] = pd.to_datetime(
-    np.random.randint(18095, 19000, N_ORDERS), unit="D"
+    np.random.randint(20000, 20100, N_ORDERS), unit="D"
 )
 
 orders["status"] = np.random.choice(
@@ -99,7 +99,7 @@ payments_base = payments_base.merge(orders[["order_id", "customer_id", "order_da
 
 n = len(payments_base)
 payments = pd.DataFrame({
-    "payment_id":   list(range(45000000, 45000000+n)),
+    "payment_id":   list(range(60000000, 60000000+n)),
     "method":       np.random.choice(["card", "Card", "cash", "CASH"], n),
     "order_id":     payments_base["order_id"].values,
     "customer_id":  payments_base["customer_id"].values,
@@ -115,11 +115,11 @@ payments.loc[mask, "total"] = None
 # -----------------------
 # SAVE TO CSV
 # -----------------------
-products.to_csv("products_raw_03_06_25v2.csv", index=False)
-customers.to_csv("customers_raw_03_06_25v2.csv", index=False)
-orders.to_csv("orders_raw_03_06_25v2.csv", index=False)
-order_items.to_csv("order_items_raw_03_06_25v2.csv", index=False)
-payments.to_csv("payments_raw_03_06_25v2.csv", index=False)
+products.to_csv("products_raw_03_06_25v6.csv", index=False)
+customers.to_csv("customers_raw_03_06_25v6.csv", index=False)
+orders.to_csv("orders_raw_03_06_25v6.csv", index=False)
+order_items.to_csv("order_items_raw_03_06_25v6.csv", index=False)
+payments.to_csv("payments_raw_03_06_25v6.csv", index=False)
 
 print("✅ All datasets generated successfully!")
 

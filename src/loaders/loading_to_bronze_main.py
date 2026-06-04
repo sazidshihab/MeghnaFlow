@@ -20,15 +20,12 @@ def log():                                               #This table only run on
     returning ingestion_id;
     """
 
-
-   
     cur = conn.cursor()
-
     cur.execute(sql)
     ingestion_id = cur.fetchone()[0]
-
     conn.commit()
     cur.close()
+    conn.close()
     return ingestion_id
 
 
