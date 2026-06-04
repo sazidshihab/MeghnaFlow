@@ -7,7 +7,7 @@
 /*
 Performance tuning : Permanant change.
 */
-    ALTER SYSTEM SET shared_buffers = '2GB'; 
+    ALTER SYSTEM SET shared_buffers = '4GB'; 
     -- Planner & I/O
     ALTER SYSTEM SET random_page_cost = 1.1;
     ALTER SYSTEM SET effective_cache_size = '6GB';
