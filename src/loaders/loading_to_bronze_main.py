@@ -4,6 +4,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 import csv
+import hashlib
 
 
 def log():                                               #This table only run once, just to get ingestion id and truncate daily table
@@ -89,6 +90,14 @@ table_config = {                                                  #Dictionary of
 
 }
 
+def compute_file_hash(csv_file):
+    h = hashlib.sha256()
+    with open(csv_file, 'rb') as f:
+        for chunk in iter(lambda: f.read(8192), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def extract_table_name(filename):                                   #Function to extract table name
 
     filename = re.match(r"^(customers|orders|order_items|payments|products)",filename)
@@ -113,7 +122,7 @@ def csv_generator(file, table_name, row_counter):
 
 
 
-def file_loaded(csv_files,ingestion_id):              #Function to copy data from landing to bronze
+def file_loaded(csv_files, ingestion_id, file_hash):              #Function to copy data from landing to bronze
 
         table_name = extract_table_name(csv_files.stem)
 
@@ -132,8 +141,8 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
                                           #Copying data from landing to bronze
 
         log_sql= f"""
-        insert into operational_log.bronze_ingest_log(ingestion_id,source_file_name,table_name,ingestion_for,row_count,executing_time)
-        values(%s,%s,%s,'bronze_raw',0,NULL)
+        insert into operational_log.bronze_ingest_log(ingestion_id,source_file_name,table_name,ingestion_for,row_count,executing_time,file_hash)
+        values(%s,%s,%s,'bronze_raw',0,NULL,%s)
         RETURNING source_file_id;
         """                                   #Inserting ingestion log (row_count updated after copy)
 
@@ -148,7 +157,7 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
 
         try:
             cur = conn.cursor()
-            cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name))
+            cur.execute(log_sql,(ingestion_id,csv_files.stem,table_name,file_hash))
             table_id=cur.fetchone()[0]
 
             row_counter = [0]
@@ -184,19 +193,21 @@ def file_loaded(csv_files,ingestion_id):              #Function to copy data fro
 
 
 def get_new_files(csv_files):
+    file_hashes = {f: compute_file_hash(f) for f in csv_files}
+
     conn = psycopg2.connect(host="localhost", port=5432, database="Demo_warehouse", user="sazid")
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT source_file_name FROM operational_log.bronze_ingest_log
+        SELECT source_file_name, file_hash FROM operational_log.bronze_ingest_log
         WHERE source_file_name = ANY(%s) AND ingestion_for = 'bronze_raw'
         """,
         ([f.stem for f in csv_files],)
     )
-    already_ingested = {row[0] for row in cur.fetchall()}
+    already_ingested = {(row[0], row[1]) for row in cur.fetchall()}
     cur.close()
     conn.close()
-    return [f for f in csv_files if f.stem not in already_ingested]
+    return [f for f in csv_files if (f.stem, file_hashes[f]) not in already_ingested], file_hashes
 
 
 def main():
@@ -206,7 +217,7 @@ def main():
     landing_folder = Path('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Landing')
     csv_files = list(landing_folder.glob("*.csv"))
 
-    new_files = get_new_files(csv_files)
+    new_files, file_hashes = get_new_files(csv_files)
 
     if not new_files:
         print("All files already ingested. Nothing to do.")
@@ -221,7 +232,12 @@ def main():
 
     try:
         with ThreadPoolExecutor(max_workers=5) as executor:
-            list(executor.map(file_loaded, new_files, [ingestion_id] * len(new_files)))
+            list(executor.map(
+                file_loaded,
+                new_files,
+                [ingestion_id] * len(new_files),
+                [file_hashes[f] for f in new_files]
+            ))
         print(f"Total time taken: {time.time()-time1}")
     except Exception as e:
         print(f"An error occurred: {e}")

@@ -35,6 +35,7 @@ def log():
 
         cur.execute("call silver.create_silver_daily_tables();")
 
+        print(f"Deleting quarantine records for ingestion_id: {ingestion_id} if any from previous run!...")
         cur.execute(
             "DELETE FROM operational_log.quarantine WHERE ingestion_id = %s",
             (ingestion_id,)

@@ -20,6 +20,7 @@ create table operational_log.bronze_ingest_log(
     ingestion_for varchar(255),
     row_count int,
     executing_time float8,
+    file_hash VARCHAR(64),
     created_at timestamp default current_date
 );
 end;
