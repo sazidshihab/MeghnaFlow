@@ -1,8 +1,24 @@
 import csv
+from gettext import install
 
+import pandas as pd
 from pathlib import Path
 import re
+
 import psycopg2
+
+print(psycopg2.__path__)
+
+import numpy as np
+txt = np.loadtxt('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Archive/customers_raw_03_06_25v2.csv', delimiter=',', dtype=str, skiprows=1, usecols=[0,1,2])
+#print(txt)
+
+import pandas as pd
+df=pd.read_csv('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Archive/customers_raw_03_06_25v2.csv',nrows=5, delimiter=',', comment='#',na_values=['Zachary James'])
+print(df)
+
+
+
 
 
 blk = [1,5,7,2,2,3,4,5,6,7,8,9]
