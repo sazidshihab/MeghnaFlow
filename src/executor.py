@@ -18,3 +18,4 @@ if __name__ == "__main__":
     archive_source_file()   
     performance_boost()                                            
     print(f"Total execution time: {time.time() - start} seconds")
+    
