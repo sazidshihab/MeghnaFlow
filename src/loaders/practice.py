@@ -111,3 +111,31 @@ for csv_file in csv_files:
 
 
 
+### Selft taught Python basic to advance for DE roles ###
+
+##The five core Data types:
+        name = "MeghnaFlow"      # str   — text
+        row_count = 160_000_000  # int   — whole numbers (note: underscores for readability)
+        price = 1234.56          # float — decimals
+        is_valid = True          # bool  — True / False
+        missing = None           # None  — the absence of a value
+
+        print(type(name))   
+        print(isinstance(name,bool))    
+        
+        #Best practice avoid float, use decimal or int for money values to avoid precision issues.
+
+        from decimal import Decimal
+        price = Decimal("1234.56")   # exact — pass it as a string, not a float
+        total = price * 3
+        print(total)
+
+
+        discount = None
+        #final = 100 - discount   # TypeError: unsupported operand type(s)
+        final = 100 - (discount if discount is not None else 0)
+
+
+## Lists, tuples, dicts, sets — when to use which
+        
+
