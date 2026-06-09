@@ -207,7 +207,7 @@ for csv_file in csv_files:
 
 ### Control flow: if / elif / else, for / while ###
 
-        #Conditionals — the basics, fast:
+        ##Conditionals — the basics, fast:
         quantity = 50
         if quantity > 100:
          tier = "bulk"
@@ -217,7 +217,7 @@ for csv_file in csv_files:
          tier = "small"
 
 
-        #The DE trap: truthiness vs explicit checks:
+        ##The DE trap: truthiness vs explicit checks:
         price = 0          # a real, valid price of zero (free sample?)
         if not price:                    # BUG: 0 is falsy, fires as if missing
             print("price is missing")    # wrong — 0 is a real value!
@@ -226,7 +226,7 @@ for csv_file in csv_files:
             print("price is missing")
 
 
-        #for loops — and the DE mindset shift:
+        ##for loops — and the DE mindset shift:
         # enumerate — when you need the index (e.g. row number for error logs)
         rows = [{"product": "Rice", "qty": 50}, {"product": "Wheat", "qty": 0}]
 
@@ -239,12 +239,12 @@ for csv_file in csv_files:
         for p, pr in zip(products, prices):
             print(p, pr)
 
-        # loop a dict
+        ## loop a dict
         for key, value in row.items():
             print(key, value)
 
 
-        #DE mindset:
+        ##DE mindset:
         '''
         the instinct to reach for a for loop over data is exactly what we discussed last topic. Looping in Python over 160M rows is slow.
         For data in pandas, you use vectorized operations; for data in the warehouse, you use SQL. 
@@ -252,7 +252,7 @@ for csv_file in csv_files:
         Loop over the 30 CSV files; don't loop over the 160M rows inside them.
         '''
 
-        #Continue and break:
+        ## Continue and break:
         for row in rows:
             if row["qty"] == 0:
                 continue          # skip this row, move to next
@@ -260,7 +260,7 @@ for csv_file in csv_files:
                 break             # stop the whole loop entirely
             process(row)  
 
-        #while loops — and the one place DEs actually use them:
+        ## while loops — and the one place DEs actually use them:
         #You rarely loop while over data. The real DE use is retry logic and pagination — when you don't know how many iterations ahead of time
 
         # Paginating an API — you don't know how many pages exist
@@ -280,7 +280,7 @@ for csv_file in csv_files:
         This is why the counter pattern (attempts < max_attempts) is the safe default for retries.    
         '''
 
-        #Real DE example of this block:
+        ##Real DE example of this block:
         '''
         def route_batch(rows: list) -> tuple:
             valid, quarantine = [], []
@@ -309,7 +309,130 @@ for csv_file in csv_files:
 
 ######  Functions: args, kwargs, return, scope ######
 
-       
+        '''
+        The anatomy:
+
+        pythondef load_to_silver(table_name, batch_size=1000):
+            ....
+            return rows_loaded
+
+        A quick vocabulary point that interviewers test: 
+        parameters are the names in the definition (table_name, batch_size); 
+        arguments are the actual values you pass when calling (load_to_silver("payments", 5000)). 
+        People use them interchangeably, but knowing the distinction signals precision.
+        '''  
+
+
+        ## Positional vs keyword arguments:
+        def load(table, schema, batch_size):
+            ...
+
+        # positional — order matters, easy to get wrong
+        load("payments", "silver", 5000)
+
+        # keyword — explicit, order-independent, self-documenting
+        load(table="payments", schema="silver", batch_size=5000) 
+        #IN DE we use keyward arguments for professionalism and to avoid mistakes, especially as the number of parameters grows. Positional is more common in quick scripts and notebooks, but keyword is the safe default for production code.
+
+
+        ## Using default value for parameters:
+        def add_row(row, batch=None):
+            if batch is None:
+                batch = []          # fresh list every call
+            batch.append(row)
+            return batch
+
+        print(add_row("A"))   # ['A']
+        print(add_row("B"))   # ['B']  ← correct, independent
+
+
+
+        ## *args and **kwargs — flexible arguments:
+        #*args collects extra positional arguments into a tuple. **kwargs collects extra keyword arguments into a dict.
+        def log_event(event_type, *args, **kwargs):
+            print(event_type)   # "pipeline_start"
+            print(args)         # ('payments', 'silver')  ← a tuple
+            print(kwargs)       # {'batch_size': 5000, 'user': 'sazid'}  ← a dict
+
+        log_event("pipeline_start", "payments", "silver", batch_size=5000, user="sazid")
+        #DE use case:
+        '''
+        The names args/kwargs are convention — what matters is the * and **. Where DEs actually use this: writing wrapper functions that pass arguments through to another function without needing to know them all:
+        pythondef with_logging(func, *args, **kwargs):
+            print(f"Starting {func.__name__}")
+            result = func(*args, **kwargs)      # unpack and pass everything through
+            print(f"Finished {func.__name__}")
+            return result
+
+        with_logging(load_to_silver, "payments", batch_size=5000)
+        '''
+
+        ##Scope:
+        '''
+        Scope — the LEGB rule
+        Scope is where a variable is visible. Python resolves names in this order — LEGB:
+        Local — inside the current function
+        Enclosing — in an outer function (if nested)
+        Global — at the top level of the module
+        Built-in — Python's own names (len, print, etc.)
+        '''
+        batch_size = 1000              # GLOBAL
+        def process():
+            batch_size = 5000          # LOCAL — separate variable, shadows the global
+            print(batch_size)          # 5000
+
+        process()
+        print(batch_size)
+
+
+        ## Pure functions vs side effects — the principle that ties it together:
+        #This is the deeper idea behind everything above. 
+        #A pure function: same input → same output, every time, with no hidden effects (doesn't modify globals, doesn't depend on outside state).
+
+        # Pure — predictable, testable, safe to retry, safe to parallelize
+        def calculate_tax(amount, rate):
+            return amount * rate
+        
+        # Impure — has a "side effect" (writes to DB), depends on outside state
+        def calculate_and_save(amount):
+            rate = get_current_rate_from_somewhere()   # hidden dependency
+            db.insert(amount * rate)                    # side effect
+        #DE level function:
+        '''
+        def load_batch(rows, table, schema="silver", batch_size=1000,
+               validate_fn=None, **db_options):
+
+            """Load rows to a table. Returns (loaded_count, rejected_rows)."""
+            if validate_fn is None:
+                validate_fn = lambda r: True        # default: accept everything
+
+            loaded, rejected = 0, []                 # local scope — no globals
+
+            for row in rows:
+                if not validate_fn(row):             # guard clause
+                    rejected.append(row)
+                    continue
+                loaded += 1
+
+            # ... actual insert using table, schema, batch_size, **db_options ...
+            return loaded, rejected                  # multiple return as tuple
+
+        # usage — keyword args make intent obvious
+        count, bad = load_batch(
+            my_rows,
+            table="payments",
+            schema="silver",
+            batch_size=5000,
+            validate_fn=lambda r: r.get("price") is not None
+        )
+        '''   
+         
+
+
+
+
+
+
 
 
 
