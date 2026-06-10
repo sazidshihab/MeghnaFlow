@@ -10,6 +10,32 @@ import psycopg2
 
 print(psycopg2.__path__)
 
+
+orders = [
+{"id": 1, "items": ["Rice", "Wheat"]},
+{"id": 2, "items": ["Sugar"]},
+]
+# Flatten to one list of all items
+all_items = {order['id']: order['items'] for order in orders}
+print(all_items[1])
+
+
+
+
+rows = [
+    {"product": "Rice", "qty": 50},
+    {"product": "Wheat", "qty": 0},
+    {"product": "Sugar", "qty": 30},
+]
+
+print([x['product'] for x in rows if x['qty']>0])
+
+
+
+
+
+
+
 import numpy as np
 txt = np.loadtxt('/Users/sazid/Work Station/SQL PDF/Warehouse Project/MeghnaFlow_/Data/Archive/customers_raw_03_06_25v2.csv', delimiter=',', dtype=str, skiprows=1, usecols=[0,1,2])
 #print(txt)
@@ -426,7 +452,7 @@ for csv_file in csv_files:
             validate_fn=lambda r: r.get("price") is not None
         )
         '''   
-         
+
 
 
 
