@@ -8,13 +8,47 @@ import re
 
 import psycopg2
 
+
 print(psycopg2.__path__)
+
+
+from typing import Optional,Any,Union
+dict1 ={
+    "val1":{
+        "col1" :"""col1,col2,col3 """,
+        "col2" :["6","7","8","9","10"]
+    },
+    "val2":{
+        "col3" :["11","12","13","14","15"],
+        "col4" :["16","17","18","19","20"]
+    }
+}
+
+
+def n1(dict1: dict[str,dict[str,str|list[str]]],val : str, col:str) -> Optional[str|list[str]]:
+   found = list(dict1[row][col] for row in dict1 if row is val and col in dict1[row]) 
+   return found
+print(n1(dict1,'val1','col1'))
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 orders = [
 {"id": 1, "items": ["Rice", "Wheat"]},
 {"id": 2, "items": ["Sugar"]},
 ]
+for row in orders:
+    print(row)
 # Flatten to one list of all items
 all_items = {order['id']: order['items'] for order in orders}
 print(all_items[1])
