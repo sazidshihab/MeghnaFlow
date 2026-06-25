@@ -89,6 +89,8 @@ while True:
     params={"skip":skip,"limit":100},
     timeout=5)
 
+    response.raise_for_status()
+
     if not response.json()['users']:
         break
     print(f"Page : {page}")
