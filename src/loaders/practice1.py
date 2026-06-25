@@ -56,38 +56,112 @@ print(pd.DataFrame(flatten_order(response)))
 import requests
 import json
 import pandas as pd
+from dotenv import load_dotenv
+import os
 from IPython.display import display
 
 data_all = []
-page= 1
+skip= 1
 
-url = 'https://api.openbrewerydb.org/v1/breweries'
+url = 'https://dummyjson.com/auth/login'
+
+load_dotenv()
+
+login_response = requests.post(
+    url,
+    json={"username": os.environ.get("DUMMY_USERNAME"), 
+          "password": os.environ.get("DUMMY_PASSWORD")}
+)
+token = login_response.json()['accessToken']
+
+headers = {
+    "Authorization": f"Bearer {token}"
+}
+
+raw_main = []
+page =1 
+
 
 while True:
+    skip = (page-1)*100
+    response = requests.get("https://dummyjson.com/users",
+    headers=headers,
+    params={"skip":skip,"limit":100},
+    timeout=5)
 
+    if not response.json()['users']:
+        break
+    print(f"Page : {page}")
 
-
-    response = requests.get(url, params={"page":page,"per_page":100}, timeout=5)
-
-    print("Status Code: ", response.status_code)
-
-    #print("Headers: ", response.headers)
-
-
-
-
-    # Always check if the request was successful
-    if response.status_code == 200:
-        data = response.json()
-
-        if not data:
-            break
-        data_all.extend(data)
-    
-    else:
+    if response.status_code != 200:
         print(f"Error {response.status_code}: Server returned non-JSON text:")
         print(response.text[:200])  # Prints the first 200 characters of the error page
         break
+
+    raw_main.extend(response.json()['users'])
+
+
     page+=1
 
-    display(pd.DataFrame(data_all))
+
+
+
+display(raw_main)
+
+main =pd.DataFrame(raw_main)
+
+table_main = main[['id','firstName','lastName','maidenName','age','gender','email','phone','username','password','birthDate','image','bloodGroup','height','weight','hair','eyeColor','ip','macAddress','university','ein','ssn','role']]
+table_main['hair_color']=table_main['hair'].apply(lambda x: x['color'])
+table_main['hair_type'] = table_main['hair'].apply(lambda x: x['type'])
+table_main = table_main.drop(columns=['hair'])
+
+
+
+table_address =pd.DataFrame(main['address'].to_list())
+table_address['id']=main['id']
+table_address['lat']=table_address['coordinates'].apply(lambda x: x['lat'])
+table_address['lng']=table_address['coordinates'].apply(lambda x: x['lng'])
+table_address= table_address.drop(columns=['coordinates'])
+
+
+table_bank = pd.DataFrame(main['bank'].to_list())
+table_bank['id']=main['id']
+
+
+table_company = pd.DataFrame(main['company'].to_list())
+table_company['id']=main['id']
+
+
+table_company_address =pd.DataFrame(table_company['address'].to_list())
+table_company_address['id']=table_company['id']
+table_company_address['lat']=table_company_address['coordinates'].apply(lambda x: x['lat'])
+table_company_address['lng']=table_company_address['coordinates'].apply(lambda x: x['lng'])
+table_company_address= table_company_address.drop(columns=['coordinates'])
+table_company = table_company.drop(columns=['address'])
+
+
+
+table_crypto = pd.DataFrame(main['crypto'].to_list())
+table_crypto['id']=main['id']
+
+
+
+
+
+display(pd.DataFrame(main))
+display(pd.DataFrame(table_main))
+display(pd.DataFrame(table_address))
+display(pd.DataFrame(table_bank))
+display(pd.DataFrame(table_company))
+display(pd.DataFrame(table_company_address))
+display(pd.DataFrame(table_crypto))
+
+
+
+
+
+
+
+
+
+
